@@ -1,0 +1,9 @@
+PySide6
+SQLAlchemy
+ortools
+pandas
+numpy
+matplotlib
+pytest
+pytest-qt
+pyinstaller
