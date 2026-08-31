@@ -17,7 +17,9 @@ if not os.path.exists(DATA_DIR):
 DB_PATH = os.path.join(DATA_DIR, 'optischedule.db')
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
-engine = create_engine(DATABASE_URL, echo=False)
+from sqlalchemy.pool import NullPool
+
+engine = create_engine(DATABASE_URL, echo=False, poolclass=NullPool, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

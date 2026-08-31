@@ -143,14 +143,28 @@ class ScheduleView(QWidget):
                     group_id=asg["group_id"],
                     teacher_id=asg["teacher_id"],
                     room_id=asg["room_id"],
-                    day=DayOfWeek(asg["day"]),
+                    day=DayOfWeek(asg["day"]) if isinstance(asg["day"], str) else asg["day"],
                     time_slot_id=asg["time_slot_id"]
                 )
                 db.add(assignment)
             db.commit()
             
-            self.status_lbl.setText(f"✅ {result['msg']}")
-            QMessageBox.information(self, "Optimización Completada", result["msg"])
+            from app.optimization.evaluator import Evaluator
+            eval_res = Evaluator(db).evaluate()
+            
+            msg_full = (
+                f"{result['msg']}\n\n"
+                f"📊 Métricas de Calidad de la Solución Recomendada:\n"
+                f"• Calidad Global Ponderada: {eval_res['global_score']}%\n"
+                f"• Satisfacción de Preferencias: {eval_res['preference_score']}%\n"
+                f"• Minimización de Huecos: {eval_res['gap_score']}%\n"
+                f"• Balance de Carga Docente: {eval_res['teacher_load_score']}%\n"
+                f"• Utilización de Aulas: {eval_res['room_utilization_score']}%\n"
+                f"• Distribución Semanal: {eval_res['distribution_score']}%"
+            )
+            
+            self.status_lbl.setText(f"✅ {result['msg']} | Calidad: {eval_res['global_score']}% ({eval_res['status']})")
+            QMessageBox.information(self, "Optimización Completada", msg_full)
             self.load_schedule()
         else:
             self.status_lbl.setText("❌ No se encontró solución factible.")

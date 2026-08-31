@@ -1,4 +1,4 @@
-﻿from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, 
     QTableWidgetItem, QHeaderView, QPushButton, QFrame, QGroupBox,
     QCheckBox, QRadioButton, QButtonGroup, QSlider, QTabWidget,
@@ -202,18 +202,38 @@ class StudentScheduleView(QWidget):
             f"🎓 Estudiante: {student.name} | Semestre: {student.semester_id} | Inscrito: {'Sí' if student.is_enrolled else 'No'} | Estado Financiero: {pago_str}"
         )
 
+        # Load saved shift preference
+        saved_pref = db.query(StudentPreference).filter_by(student_id=student_id, priority=1).first()
+        if saved_pref:
+            if saved_pref.shift == ShiftType.MORNING:
+                self.rb_morning.setChecked(True)
+            elif saved_pref.shift == ShiftType.AFTERNOON:
+                self.rb_afternoon.setChecked(True)
+            elif saved_pref.shift == ShiftType.NIGHT:
+                self.rb_night.setChecked(True)
+
         # Populate Subjects for checkbox selection
         while self.subj_checkboxes_layout.count() > 0:
             item = self.subj_checkboxes_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        # Fetch subjects of student's semester + other semesters
-        subjects = db.query(Subject).filter_by(semester_id=student.semester_id).all()
+        # Fetch subjects: prioritize student's semester (checked) and then other semesters (unchecked)
+        sem_subjects = db.query(Subject).filter_by(semester_id=student.semester_id).all()
+        other_subjects = db.query(Subject).filter(Subject.semester_id != student.semester_id).all()
+        
         self.subject_checkboxes = {}
-        for subj in subjects:
-            cb = QCheckBox(f"{subj.name} (Semestre {subj.semester_id} - {subj.hours_per_week}h/sem)")
-            cb.setChecked(True) # Checked by default
+        for subj in sem_subjects:
+            cb = QCheckBox(f"📘 {subj.name} (Semestre {subj.semester_id} - {subj.hours_per_week}h/sem)")
+            cb.setChecked(True) # Checked by default for own semester
+            cb.setStyleSheet("font-weight: bold; color: #1e3a8a;")
+            self.subj_checkboxes_layout.addWidget(cb)
+            self.subject_checkboxes[subj.id] = cb
+
+        for subj in other_subjects:
+            cb = QCheckBox(f"📙 {subj.name} (Semestre {subj.semester_id} - {subj.hours_per_week}h/sem)")
+            cb.setChecked(False) # Unchecked by default
+            cb.setStyleSheet("color: #475569;")
             self.subj_checkboxes_layout.addWidget(cb)
             self.subject_checkboxes[subj.id] = cb
 

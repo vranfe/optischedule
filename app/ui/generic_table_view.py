@@ -1,19 +1,28 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, 
     QLabel, QPushButton, QHBoxLayout, QLineEdit, QHeaderView, 
-    QFrame, QMessageBox, QDialog, QFormLayout, QDialogButtonBox
+    QFrame, QMessageBox, QDialog, QFormLayout, QDialogButtonBox,
+    QComboBox, QCheckBox
 )
 from PySide6.QtCore import Qt
 from app.database.database import get_db
 
 class GenericTableView(QWidget):
-    def __init__(self, title, headers, model_class, field_keys, fetch_data_func=None):
+    def __init__(self, title, headers, model_class, field_keys, enum_mappings=None):
+        """
+        Generic CRUD Table Widget.
+        :param title: Display name of the entity (e.g., "Estudiantes", "Docentes")
+        :param headers: Column titles (e.g., ["ID", "Nombre", "Semestre", ...])
+        :param model_class: SQLAlchemy Model Class (e.g., Student, Teacher, Subject, Group, Room)
+        :param field_keys: Model attribute names matching headers (e.g., ["id", "name", "semester_id", ...])
+        :param enum_mappings: Optional dict of {field_name: enum_class} for Enum fields
+        """
         super().__init__()
         self.title = title
         self.headers = headers
         self.model_class = model_class
-        self.field_keys = field_keys # List of attribute names e.g. ["id", "name", "capacity", "room_type"]
-        self.fetch_data_func = fetch_data_func
+        self.field_keys = field_keys
+        self.enum_mappings = enum_mappings or {}
         self.raw_data = []
         self.is_loading = False
         
@@ -32,7 +41,8 @@ class GenericTableView(QWidget):
         
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("🔍 Buscar...")
-        self.search_input.setFixedWidth(200)
+        self.search_input.setFixedWidth(180)
+        self.search_input.setStyleSheet("color: #0f172a; background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px;")
         self.search_input.textChanged.connect(self.filter_data)
         header_layout.addWidget(self.search_input)
 
@@ -46,6 +56,12 @@ class GenericTableView(QWidget):
         add_btn.setStyleSheet("background-color: #16a34a; color: white; font-weight: bold; padding: 7px 12px; border-radius: 6px;")
         add_btn.clicked.connect(self.add_record_dialog)
         header_layout.addWidget(add_btn)
+
+        edit_btn = QPushButton("✏️ Editar")
+        edit_btn.setCursor(Qt.PointingHandCursor)
+        edit_btn.setStyleSheet("background-color: #f59e0b; color: white; font-weight: bold; padding: 7px 12px; border-radius: 6px;")
+        edit_btn.clicked.connect(self.edit_selected_record)
+        header_layout.addWidget(edit_btn)
 
         del_btn = QPushButton("🗑️ Eliminar")
         del_btn.setCursor(Qt.PointingHandCursor)
@@ -62,7 +78,7 @@ class GenericTableView(QWidget):
         layout.addWidget(header_card)
         
         # Info note
-        note_lbl = QLabel("💡 <i>Tip: Puedes hacer doble clic en cualquier celda para editar su valor y se guardará automáticamente en la base de datos.</i>")
+        note_lbl = QLabel("💡 <i>Tip: Puedes hacer doble clic en una celda para editarla directamente o seleccionar una fila y presionar '✏️ Editar'. Los cambios se guardan inmediatamente en la base de datos.</i>")
         note_lbl.setStyleSheet("font-size: 11px; color: #64748b; margin-left: 5px;")
         layout.addWidget(note_lbl)
 
@@ -76,12 +92,17 @@ class GenericTableView(QWidget):
                 gridline-color: #cbd5e1;
                 background-color: #ffffff;
                 color: #0f172a;
+                font-size: 13px;
             }
             QHeaderView::section {
                 background-color: #1e293b;
                 color: #ffffff;
                 padding: 8px;
                 font-weight: bold;
+            }
+            QTableWidget::item:selected {
+                background-color: #93c5fd;
+                color: #0f172a;
             }
         """)
         self.table.itemChanged.connect(self.on_cell_edited)
@@ -92,10 +113,7 @@ class GenericTableView(QWidget):
     def load_data(self):
         self.is_loading = True
         db = next(get_db())
-        
-        if self.fetch_data_func:
-            self.raw_data = self.fetch_data_func(db)
-        else:
+        try:
             records = db.query(self.model_class).all()
             self.raw_data = []
             for r in records:
@@ -104,11 +122,16 @@ class GenericTableView(QWidget):
                     val = getattr(r, k, "")
                     if hasattr(val, "value"): # Enum
                         val = val.value
+                    elif isinstance(val, bool):
+                        val = "Sí" if val else "No"
+                    elif val is None:
+                        val = ""
                     row_vals.append(val)
                 self.raw_data.append(row_vals)
+        finally:
+            self.is_loading = False
 
         self.filter_data(self.search_input.text())
-        self.is_loading = False
         
     def filter_data(self, query=""):
         self.is_loading = True
@@ -127,7 +150,7 @@ class GenericTableView(QWidget):
         for row_idx, row_data in enumerate(filtered):
             for col_idx, col_data in enumerate(row_data):
                 item = QTableWidgetItem(str(col_data))
-                if col_idx == 0: # ID column non-editable
+                if col_idx == 0: # ID column is non-editable
                     item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                     item.setForeground(Qt.darkGray)
                 else:
@@ -156,30 +179,59 @@ class GenericTableView(QWidget):
             record = db.query(self.model_class).filter_by(id=record_id).first()
             if record:
                 curr_attr = getattr(record, field_name)
+                
                 # Type cast
-                if isinstance(curr_attr, int):
-                    new_val = int(new_val_str)
+                if field_name in self.enum_mappings:
+                    enum_cls = self.enum_mappings[field_name]
+                    # Find enum by value or name
+                    new_val = next((e for e in enum_cls if e.value.upper() == new_val_str.upper() or e.name.upper() == new_val_str.upper()), curr_attr)
+                elif isinstance(curr_attr, bool) or field_name in ["is_enrolled", "has_payment_agreement", "allow_saturday"]:
+                    new_val = (new_val_str.lower() in ["sí", "si", "true", "1", "yes"])
+                elif isinstance(curr_attr, int):
+                    new_val = int(new_val_str) if new_val_str else 0
                 elif isinstance(curr_attr, float):
-                    new_val = float(new_val_str)
-                elif isinstance(curr_attr, bool):
-                    new_val = (new_val_str.lower() in ["true", "1", "sí", "si"])
+                    new_val = float(new_val_str) if new_val_str else 0.0
                 else:
                     new_val = new_val_str
 
                 setattr(record, field_name, new_val)
                 db.commit()
+
                 # Update in-memory raw_data
                 for r in self.raw_data:
                     if r[0] == record_id:
-                        r[col] = new_val
+                        disp_val = new_val.value if hasattr(new_val, "value") else ("Sí" if isinstance(new_val, bool) and new_val else ("No" if isinstance(new_val, bool) else new_val))
+                        r[col] = disp_val
+                        # Format cell text nicely
+                        self.is_loading = True
+                        item.setText(str(disp_val))
+                        self.is_loading = False
                         break
         except Exception as e:
-            print(f"Error updating cell: {e}")
+            print(f"Error updating cell in {self.title}: {e}")
+            QMessageBox.warning(self, "Error al Actualizar", f"No se pudo actualizar el campo:\n{e}")
+            self.load_data()
 
-    def add_record_dialog(self):
+    def edit_selected_record(self):
+        curr_row = self.table.currentRow()
+        if curr_row < 0:
+            QMessageBox.warning(self, "Selección Requerida", "Por favor selecciona una fila de la tabla para editar.")
+            return
+
+        id_item = self.table.item(curr_row, 0)
+        if not id_item:
+            return
+
+        record_id = int(id_item.text())
+        db = next(get_db())
+        record = db.query(self.model_class).filter_by(id=record_id).first()
+        if not record:
+            QMessageBox.critical(self, "Error", "No se encontró el registro en la base de datos.")
+            return
+
         dialog = QDialog(self)
-        dialog.setWindowTitle(f"Agregar Nuevo Registro - {self.title}")
-        dialog.setFixedWidth(380)
+        dialog.setWindowTitle(f"Editar Registro #{record_id} - {self.title}")
+        dialog.setFixedWidth(420)
         
         d_layout = QVBoxLayout(dialog)
         form_layout = QFormLayout()
@@ -188,10 +240,93 @@ class GenericTableView(QWidget):
         for idx, key in enumerate(self.field_keys):
             if key == "id":
                 continue
-            inp = QLineEdit()
-            inp.setStyleSheet("color: #0f172a; background-color: #ffffff; padding: 6px;")
-            form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), inp)
-            inputs[key] = inp
+            curr_val = getattr(record, key, "")
+            
+            if key in self.enum_mappings:
+                enum_cls = self.enum_mappings[key]
+                combo = QComboBox()
+                for e in enum_cls:
+                    combo.addItem(e.value, e)
+                # Set current
+                curr_enum_val = curr_val.value if hasattr(curr_val, "value") else str(curr_val)
+                idx_enum = combo.findText(curr_enum_val)
+                if idx_enum >= 0:
+                    combo.setCurrentIndex(idx_enum)
+                form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), combo)
+                inputs[key] = combo
+            elif isinstance(curr_val, bool) or key in ["is_enrolled", "has_payment_agreement", "allow_saturday"]:
+                cb = QCheckBox("Activo / Sí")
+                cb.setChecked(bool(curr_val))
+                form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), cb)
+                inputs[key] = cb
+            else:
+                inp = QLineEdit(str(curr_val if curr_val is not None else ""))
+                inp.setStyleSheet("color: #0f172a; background-color: #ffffff; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;")
+                form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), inp)
+                inputs[key] = inp
+
+        d_layout.addLayout(form_layout)
+        
+        btn_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        btn_box.accepted.connect(dialog.accept)
+        btn_box.rejected.connect(dialog.reject)
+        d_layout.addWidget(btn_box)
+
+        if dialog.exec() == QDialog.Accepted:
+            try:
+                for key, widget in inputs.items():
+                    if isinstance(widget, QComboBox):
+                        val = widget.currentData()
+                    elif isinstance(widget, QCheckBox):
+                        val = widget.isChecked()
+                    else:
+                        val_str = widget.text().strip()
+                        curr_attr = getattr(record, key)
+                        if isinstance(curr_attr, int):
+                            val = int(val_str) if val_str else 0
+                        elif isinstance(curr_attr, float):
+                            val = float(val_str) if val_str else 0.0
+                        else:
+                            val = val_str
+                    setattr(record, key, val)
+
+                db.commit()
+                QMessageBox.information(self, "Actualización Exitosa", f"El registro #{record_id} de {self.title} se actualizó correctamente.")
+                self.load_data()
+            except Exception as e:
+                db.rollback()
+                QMessageBox.critical(self, "Error al Actualizar", f"No se pudo guardar la modificación:\n{e}")
+
+    def add_record_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Agregar Nuevo Registro - {self.title}")
+        dialog.setFixedWidth(420)
+        
+        d_layout = QVBoxLayout(dialog)
+        form_layout = QFormLayout()
+        
+        inputs = {}
+        for idx, key in enumerate(self.field_keys):
+            if key == "id":
+                continue
+            
+            if key in self.enum_mappings:
+                enum_cls = self.enum_mappings[key]
+                combo = QComboBox()
+                for e in enum_cls:
+                    combo.addItem(e.value, e)
+                form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), combo)
+                inputs[key] = combo
+            elif key in ["is_enrolled", "has_payment_agreement", "allow_saturday"]:
+                cb = QCheckBox("Activo / Sí")
+                cb.setChecked(True)
+                form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), cb)
+                inputs[key] = cb
+            else:
+                inp = QLineEdit()
+                inp.setStyleSheet("color: #0f172a; background-color: #ffffff; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px;")
+                form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), inp)
+                inputs[key] = inp
 
         d_layout.addLayout(form_layout)
         
@@ -204,19 +339,25 @@ class GenericTableView(QWidget):
             try:
                 db = next(get_db())
                 new_obj = self.model_class()
-                for key, inp in inputs.items():
-                    val = inp.text().strip()
-                    if key in ["hours_per_week", "capacity", "expected_students", "semester_id"]:
-                        val = int(val) if val else 0
-                    elif key in ["has_payment_agreement", "is_enrolled"]:
-                        val = (val.lower() in ["true", "1", "si", "sí"])
+                for key, widget in inputs.items():
+                    if isinstance(widget, QComboBox):
+                        val = widget.currentData()
+                    elif isinstance(widget, QCheckBox):
+                        val = widget.isChecked()
+                    else:
+                        val_str = widget.text().strip()
+                        if key in ["hours_per_week", "capacity", "expected_students", "semester_id", "number"]:
+                            val = int(val_str) if val_str else 0
+                        else:
+                            val = val_str
                     setattr(new_obj, key, val)
                     
                 db.add(new_obj)
                 db.commit()
-                QMessageBox.information(self, "Registro Creado", "El nuevo registro se ha guardado exitosamente.")
+                QMessageBox.information(self, "Registro Creado", f"El nuevo registro de {self.title} se ha guardado exitosamente.")
                 self.load_data()
             except Exception as e:
+                db.rollback()
                 QMessageBox.critical(self, "Error", f"No se pudo crear el registro:\n{e}")
 
     def delete_selected_record(self):
@@ -244,30 +385,6 @@ class GenericTableView(QWidget):
                 QMessageBox.information(self, "Eliminado", "Registro eliminado exitosamente.")
                 self.load_data()
             except Exception as e:
+                db.rollback()
                 QMessageBox.critical(self, "Error", f"No se pudo eliminar el registro:\n{e}")
-
-        
-    def load_data(self):
-        db = next(get_db())
-        self.raw_data = self.fetch_data_func(db)
-        self.filter_data(self.search_input.text())
-        
-    def filter_data(self, query=""):
-        query = query.strip().lower()
-        if not query:
-            filtered = self.raw_data
-        else:
-            filtered = [
-                row for row in self.raw_data 
-                if any(query in str(col).lower() for col in row)
-            ]
-
-        self.count_badge.setText(f"{len(filtered)} registros")
-        self.table.setRowCount(len(filtered))
-        
-        for row_idx, row_data in enumerate(filtered):
-            for col_idx, col_data in enumerate(row_data):
-                item = QTableWidgetItem(str(col_data))
-                item.setForeground(Qt.black)
-                self.table.setItem(row_idx, col_idx, item)
 

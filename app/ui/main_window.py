@@ -5,12 +5,13 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from app.auth.session import session
 from app.auth.auth_service import AuthService
-from app.database.models import UserRole, Student, Teacher, Subject, Room, Group
+from app.database.models import UserRole, Student, Teacher, Subject, Room, Group, TeacherType
 from app.ui.views.login_view import LoginView
 from app.ui.views.dashboard_view import DashboardView
 from app.ui.views.workload_view import WorkloadView
 from app.ui.views.rules_view import RulesView
 from app.ui.views.preferences_view import PreferencesView
+from app.ui.views.solution_comparison_view import SolutionComparisonView
 from app.ui.views.teacher_schedule_view import TeacherScheduleView
 from app.ui.views.student_schedule_view import StudentScheduleView
 from app.ui.views.student_preferences_view import StudentPreferencesView
@@ -160,29 +161,31 @@ class MainWindow(QMainWindow):
                 ("📊 Dashboard General", DashboardView(nav_callback=self.navigate_to)),
                 ("⚡ Generar Horario", ScheduleView()),
                 ("📅 Horario Institucional", ScheduleView()),
+                ("⚖️ Comparar Soluciones", SolutionComparisonView()),
                 ("📈 Sobrecarga Docente", WorkloadView()),
                 ("⚙️ Reglas y Restricciones", RulesView()),
                 ("📝 Preferencias Docentes", PreferencesView()),
                 ("🎯 Evaluación y Métricas", ResultsView()),
                 ("🎓 Estudiantes (CRUD)", GenericTableView(
                     "Estudiantes", ["ID", "Nombre", "Semestre", "Inscrito", "Acuerdo Pago"],
-                    lambda db: [(s.id, s.name, s.semester_id, "Sí" if s.is_enrolled else "No", "Sí" if s.has_payment_agreement else "No") for s in db.query(Student).all()]
+                    Student, ["id", "name", "semester_id", "is_enrolled", "has_payment_agreement"]
                 )),
                 ("👨‍🏫 Docentes (CRUD)", GenericTableView(
                     "Docentes", ["ID", "Nombre", "Tipo Contrato"],
-                    lambda db: [(t.id, t.name, t.teacher_type.value) for t in db.query(Teacher).all()]
+                    Teacher, ["id", "name", "teacher_type"],
+                    enum_mappings={"teacher_type": TeacherType}
                 )),
                 ("📚 Asignaturas (CRUD)", GenericTableView(
                     "Asignaturas", ["ID", "Nombre", "Horas Semanales", "Semestre"],
-                    lambda db: [(s.id, s.name, s.hours_per_week, s.semester_id) for s in db.query(Subject).all()]
+                    Subject, ["id", "name", "hours_per_week", "semester_id"]
                 )),
                 ("👥 Grupos (CRUD)", GenericTableView(
-                    "Grupos", ["ID", "Nombre", "Asignatura", "Estudiantes Estimados"],
-                    lambda db: [(g.id, g.name, g.subject.name if g.subject else "", g.expected_students) for g in db.query(Group).all()]
+                    "Grupos", ["ID", "Nombre", "ID Asignatura", "Estudiantes Estimados"],
+                    Group, ["id", "name", "subject_id", "expected_students"]
                 )),
                 ("📍 Aulas (CRUD)", GenericTableView(
                     "Aulas", ["ID", "Nombre", "Capacidad", "Tipo Aula"],
-                    lambda db: [(r.id, r.name, r.capacity, r.room_type) for r in db.query(Room).all()]
+                    Room, ["id", "name", "capacity", "room_type"]
                 ))
             ]
 

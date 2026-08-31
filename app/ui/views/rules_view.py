@@ -1,4 +1,4 @@
-﻿from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, 
     QDoubleSpinBox, QCheckBox, QPushButton, QMessageBox, QGroupBox, QFormLayout
 )
@@ -86,6 +86,11 @@ class RulesView(QWidget):
         self.room_weight.setSingleStep(0.05)
         soft_layout.addRow("Peso Eficiencia de Uso de Aulas:", self.room_weight)
 
+        self.dist_weight = QDoubleSpinBox()
+        self.dist_weight.setRange(0.0, 1.0)
+        self.dist_weight.setSingleStep(0.05)
+        soft_layout.addRow("Peso Distribución Semanal:", self.dist_weight)
+
         main_layout.addWidget(soft_group)
 
         self.load_config()
@@ -106,6 +111,7 @@ class RulesView(QWidget):
         self.gap_weight.setValue(config.gap_weight)
         self.load_weight.setValue(config.load_weight)
         self.room_weight.setValue(config.room_weight)
+        self.dist_weight.setValue(config.dist_weight if hasattr(config, "dist_weight") else 0.10)
 
     def save_config(self):
         db = next(get_db())
@@ -124,6 +130,7 @@ class RulesView(QWidget):
         config.gap_weight = self.gap_weight.value()
         config.load_weight = self.load_weight.value()
         config.room_weight = self.room_weight.value()
+        config.dist_weight = self.dist_weight.value()
 
         db.commit()
         QMessageBox.information(self, "Configuración Guardada", "Las reglas y restricciones se han actualizado exitosamente.")

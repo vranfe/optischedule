@@ -1,12 +1,17 @@
 from ortools.sat.python import cp_model
-from app.database.models import Group, Teacher, Room, TimeSlot, TeacherAvailability, DayOfWeek, Config, TeacherSubjectPreference
+from app.database.models import Group, Teacher, Room, TimeSlot, TeacherAvailability, DayOfWeek, Config, TeacherSubjectPreference, TeacherType
 from app.database.database import get_db
-
 from datetime import time
 
 class ScheduleSolver:
-    def __init__(self, db):
+    def __init__(self, db, profile="balanced"):
+        """
+        CP-SAT Solver for Institutional Timetable Generation.
+        :param db: SQLAlchemy database session
+        :param profile: Optimization focus profile: 'balanced', 'preferences', 'compact', 'load_balance'
+        """
         self.db = db
+        self.profile = profile
         self.model = cp_model.CpModel()
         
         self.groups = self.db.query(Group).all()
@@ -48,11 +53,12 @@ class ScheduleSolver:
         # assign[(g.id, t.id, r.id, d.value, s.id)] = boolean variable
     
     def build_model(self):
-        # 1. Variables Creation (Pruned by Candidate Teachers and Room Capacities)
+        # 1. Variables Creation (Pruned by Availability, Sábados hasta las 17:00, y Capacidad de Aulas)
         for g in self.groups:
-            cand_teachers = self.subject_teachers.get(g.subject_id, self.teachers)
             valid_rooms = [r for r in self.rooms if r.capacity >= g.expected_students]
-            for t in cand_teachers:
+            if not valid_rooms:
+                valid_rooms = self.rooms # Fallback
+            for t in self.teachers:
                 for r in valid_rooms:
                     for d in self.days:
                         for s in self.time_slots:
@@ -69,7 +75,7 @@ class ScheduleSolver:
         
         # Each group must have exactly its required hours (slots = hours / 2)
         for g in self.groups:
-            required_slots = max(1, g.subject.hours_per_week // 2)
+            required_slots = max(1, g.subject.hours_per_week // 2) if g.subject else 2
             vars_for_group = [
                 self.variables[k] for k in self.variables if k[0] == g.id
             ]
@@ -112,9 +118,9 @@ class ScheduleSolver:
         # Teacher max load constraint (in hours): 42h FT, 21h PT, 23h Cátedra
         for t in self.teachers:
             max_hours = self.config.full_time_hours if self.config else 42
-            if t.teacher_type.value == "MEDIO TIEMPO":
+            if t.teacher_type == TeacherType.PART_TIME:
                 max_hours = self.config.part_time_hours if self.config else 21
-            elif t.teacher_type.value == "CATEDRA":
+            elif t.teacher_type == TeacherType.CATEDRA:
                 max_hours = self.config.catedra_hours if self.config else 23
                 
             max_slots = max_hours // 2
@@ -124,13 +130,23 @@ class ScheduleSolver:
             if t_all_vars:
                 self.model.Add(sum(t_all_vars) <= max_slots)
 
-        # 3. Soft Constraints / Objective Function (Maximize Teacher Subject Preferences)
+        # 3. Soft Constraints / Multi-Objective Function
+        pref_w = self.config.pref_weight if self.config else 0.35
+        w_pref = max(1, int(pref_w * 10))
+        if self.profile == "preferences":
+            w_pref = 10
+        elif self.profile == "compact":
+            w_pref = 3
+        elif self.profile == "load_balance":
+            w_pref = 4
+
+        group_map = {g.id: g for g in self.groups}
         objective_terms = []
         for (g_id, t_id, r_id, d_val, s_id), var in self.variables.items():
-            g = next((grp for grp in self.groups if grp.id == g_id), None)
+            g = group_map.get(g_id)
             if g:
-                score = self.pref_map.get((t_id, g.subject_id), 1)
-                objective_terms.append(score * var)
+                score = self.pref_map.get((t_id, g.subject_id), 3)
+                objective_terms.append((score * w_pref) * var)
 
         if objective_terms:
             self.model.Maximize(sum(objective_terms))
@@ -158,7 +174,8 @@ class ScheduleSolver:
                 "status": "SUCCESS", 
                 "solver_status": status_desc,
                 "assignments": assignments, 
-                "msg": f"Solución {status_desc} encontrada con éxito ({len(assignments)} asignaciones)."
+                "msg": f"Solución {status_desc} encontrada con éxito ({len(assignments)} clases asignadas)."
             }
         else:
             return {"status": "FAILED", "assignments": [], "msg": "No se encontró una solución factible con las restricciones actuales."}
+

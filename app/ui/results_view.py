@@ -27,20 +27,20 @@ class ResultsView(QWidget):
         self.labels = {}
         
         metrics = [
-            ("Estado", "status"),
-            ("Violaciones Duras", "hard_constraint_violations"),
-            ("Puntuación Preferencias", "preference_score"),
-            ("Puntuación Huecos", "gap_score"),
-            ("Carga Docente", "teacher_load_score"),
-            ("Utilización Aulas", "room_utilization_score"),
-            ("Distribución", "distribution_score"),
-            ("Score Global (0-1)", "global_score")
+            ("Estado de Factibilidad", "status"),
+            ("Violaciones Restricciones Duras", "hard_constraint_violations"),
+            ("Satisfacción de Preferencias", "preference_score"),
+            ("Minimización de Huecos (Ventanas)", "gap_score"),
+            ("Balance de Carga Docente", "teacher_load_score"),
+            ("Utilización Eficiente de Aulas", "room_utilization_score"),
+            ("Distribución Semanal de Clases", "distribution_score"),
+            ("Calidad Global Ponderada (0 - 100%)", "global_score")
         ]
         
         for label_text, key in metrics:
             lbl = QLabel("-")
-            lbl.setStyleSheet("font-size: 16px;")
-            self.form_layout.addRow(QLabel(label_text + ":"), lbl)
+            lbl.setStyleSheet("font-size: 15px; color: #1e293b; font-weight: 600;")
+            self.form_layout.addRow(QLabel(f"<b>{label_text}:</b>"), lbl)
             self.labels[key] = lbl
             
         self.layout.addLayout(self.form_layout)
@@ -51,20 +51,22 @@ class ResultsView(QWidget):
         results = evaluator.evaluate()
         
         if results["hard_constraint_violations"] == 0 and results["global_score"] > 0:
-            self.labels["status"].setText("FACTIBLE")
-            self.labels["status"].setStyleSheet("color: green; font-weight: bold;")
-        elif results["global_score"] == 0:
-            self.labels["status"].setText("NO HAY HORARIO")
-            self.labels["status"].setStyleSheet("color: gray;")
+            self.labels["status"].setText("FACTIBLE (0 violaciones)")
+            self.labels["status"].setStyleSheet("color: #16a34a; font-weight: bold; font-size: 16px;")
+        elif results["global_score"] == 0 and results["status"] == "NO HAY HORARIO":
+            self.labels["status"].setText("NO HAY HORARIO GENERADO")
+            self.labels["status"].setStyleSheet("color: #64748b; font-weight: bold; font-size: 16px;")
         else:
-            self.labels["status"].setText("NO FACTIBLE")
-            self.labels["status"].setStyleSheet("color: red; font-weight: bold;")
+            self.labels["status"].setText(f"NO FACTIBLE ({results['hard_constraint_violations']} violaciones)")
+            self.labels["status"].setStyleSheet("color: #dc2626; font-weight: bold; font-size: 16px;")
             
         for key, lbl in self.labels.items():
+            if key == "status":
+                continue
             if key in results:
                 val = results[key]
-                if "score" in key:
-                    lbl.setText(f"{val * 100:.1f}%")
+                if "score" in key and isinstance(val, (int, float)):
+                    lbl.setText(f"{val:.1f}%")
                 else:
                     lbl.setText(str(val))
                         
