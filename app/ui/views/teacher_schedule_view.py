@@ -1,8 +1,10 @@
-﻿from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QPushButton, QFrame
+    QTableWidgetItem, QHeaderView, QPushButton, QFrame,
+    QFileDialog, QMessageBox
 )
 from PySide6.QtCore import Qt
+import csv
 from app.database.database import get_db
 from app.database.models import Teacher, ScheduleAssignment, TimeSlot, DayOfWeek
 from app.auth.session import session
@@ -21,7 +23,14 @@ class TeacherScheduleView(QWidget):
         self.title_lbl.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e3a8a;")
         header.addWidget(self.title_lbl)
 
+        export_btn = QPushButton("📥 Exportar Mi Horario (CSV)")
+        export_btn.setCursor(Qt.PointingHandCursor)
+        export_btn.setStyleSheet("background-color: #0284c7; color: white; font-weight: bold; padding: 8px 14px; border-radius: 6px;")
+        export_btn.clicked.connect(self.export_csv)
+        header.addWidget(export_btn)
+
         refresh_btn = QPushButton("🔄 Actualizar")
+        refresh_btn.setCursor(Qt.PointingHandCursor)
         refresh_btn.setStyleSheet("background-color: #2563eb; color: white; font-weight: bold; padding: 8px 16px; border-radius: 6px;")
         refresh_btn.clicked.connect(self.load_schedule)
         header.addWidget(refresh_btn)
@@ -104,3 +113,44 @@ class TeacherScheduleView(QWidget):
                 self.table.setItem(r_idx, c_idx, item)
 
         self.table.resizeRowsToContents()
+
+    def export_csv(self):
+        db = next(get_db())
+        teacher_id = session.teacher_id
+        if not teacher_id:
+            first_t = db.query(Teacher).first()
+            teacher_id = first_t.id if first_t else None
+
+        if not teacher_id:
+            QMessageBox.warning(self, "Aviso", "No se encontró el docente actual.")
+            return
+
+        teacher = db.query(Teacher).filter_by(id=teacher_id).first()
+        if not teacher or not teacher.assignments:
+            QMessageBox.warning(self, "Exportación", "No tienes clases asignadas en el horario institucional.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(self, "Exportar Mi Horario", f"Horario_{teacher.name.replace(' ', '_')}.csv", "Archivos CSV (*.csv)")
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f, delimiter=";")
+                writer.writerow(["Día", "Jornada", "Hora Inicio", "Hora Fin", "Asignatura", "Semestre", "Grupo", "Aula", "Tipo Aula"])
+                for asg in teacher.assignments:
+                    slot = asg.time_slot
+                    writer.writerow([
+                        asg.day.value,
+                        slot.shift.value if slot else "",
+                        slot.start_time.strftime('%H:%M') if slot else "",
+                        slot.end_time.strftime('%H:%M') if slot else "",
+                        asg.group.subject.name if asg.group and asg.group.subject else "",
+                        asg.group.subject.semester_id if asg.group and asg.group.subject else "",
+                        asg.group.name if asg.group else "",
+                        asg.room.name if asg.room else "",
+                        asg.room.room_type if asg.room else ""
+                    ])
+            QMessageBox.information(self, "Exportación Exitosa", f"Tu horario se ha exportado correctamente a:\n{file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error de Exportación", f"No se pudo guardar el archivo:\n{e}")

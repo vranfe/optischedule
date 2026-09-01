@@ -159,8 +159,7 @@ class MainWindow(QMainWindow):
             # Views for Universidad / Admin
             views = [
                 ("📊 Dashboard General", DashboardView(nav_callback=self.navigate_to)),
-                ("⚡ Generar Horario", ScheduleView()),
-                ("📅 Horario Institucional", ScheduleView()),
+                ("⚡ Horario Institucional", ScheduleView()),
                 ("⚖️ Comparar Soluciones", SolutionComparisonView()),
                 ("📈 Sobrecarga Docente", WorkloadView()),
                 ("⚙️ Reglas y Restricciones", RulesView()),

@@ -53,12 +53,22 @@ class ScheduleSolver:
         # assign[(g.id, t.id, r.id, d.value, s.id)] = boolean variable
     
     def build_model(self):
+        from collections import defaultdict
+
+        # Index dictionaries for O(1) constraint generation
+        group_vars = defaultdict(list)
+        group_day_slot_vars = defaultdict(list)
+        teacher_day_slot_vars = defaultdict(list)
+        room_day_slot_vars = defaultdict(list)
+        teacher_vars = defaultdict(list)
+
         # 1. Variables Creation (Pruned by Availability, Sábados hasta las 17:00, y Capacidad de Aulas)
         for g in self.groups:
             valid_rooms = [r for r in self.rooms if r.capacity >= g.expected_students]
             if not valid_rooms:
                 valid_rooms = self.rooms # Fallback
-            for t in self.teachers:
+            candidate_teachers = self.subject_teachers.get(g.subject_id, self.teachers)
+            for t in candidate_teachers:
                 for r in valid_rooms:
                     for d in self.days:
                         for s in self.time_slots:
@@ -69,51 +79,37 @@ class ScheduleSolver:
                             # Availability check
                             if (t.id, d.value, s.id) in self.teacher_avail_dict:
                                 var_name = f"g{g.id}_t{t.id}_r{r.id}_d{d.name}_s{s.id}"
-                                self.variables[(g.id, t.id, r.id, d.value, s.id)] = self.model.NewBoolVar(var_name)
+                                var = self.model.NewBoolVar(var_name)
+                                self.variables[(g.id, t.id, r.id, d.value, s.id)] = var
+                                group_vars[g.id].append(var)
+                                group_day_slot_vars[(g.id, d.value, s.id)].append(var)
+                                teacher_day_slot_vars[(t.id, d.value, s.id)].append(var)
+                                room_day_slot_vars[(r.id, d.value, s.id)].append(var)
+                                teacher_vars[t.id].append(var)
         
         # 2. Hard Constraints
         
         # Each group must have exactly its required hours (slots = hours / 2)
         for g in self.groups:
             required_slots = max(1, g.subject.hours_per_week // 2) if g.subject else 2
-            vars_for_group = [
-                self.variables[k] for k in self.variables if k[0] == g.id
-            ]
+            vars_for_group = group_vars[g.id]
             if vars_for_group:
                 self.model.Add(sum(vars_for_group) == required_slots)
             
         # A group can only have at most one slot at the same (day, time_slot)
-        for g in self.groups:
-            for d in self.days:
-                for s in self.time_slots:
-                    g_vars = [
-                        self.variables[k] for k in self.variables 
-                        if k[0] == g.id and k[3] == d.value and k[4] == s.id
-                    ]
-                    if g_vars:
-                        self.model.AddAtMostOne(g_vars)
+        for g_vars in group_day_slot_vars.values():
+            if len(g_vars) > 1:
+                self.model.AddAtMostOne(g_vars)
                     
         # A teacher can only teach at most one group at the same (day, time_slot)
-        for t in self.teachers:
-            for d in self.days:
-                for s in self.time_slots:
-                    t_vars = [
-                        self.variables[k] for k in self.variables 
-                        if k[1] == t.id and k[3] == d.value and k[4] == s.id
-                    ]
-                    if t_vars:
-                        self.model.AddAtMostOne(t_vars)
+        for t_vars in teacher_day_slot_vars.values():
+            if len(t_vars) > 1:
+                self.model.AddAtMostOne(t_vars)
                     
         # A room can only host at most one group at the same (day, time_slot)
-        for r in self.rooms:
-            for d in self.days:
-                for s in self.time_slots:
-                    r_vars = [
-                        self.variables[k] for k in self.variables 
-                        if k[2] == r.id and k[3] == d.value and k[4] == s.id
-                    ]
-                    if r_vars:
-                        self.model.AddAtMostOne(r_vars)
+        for r_vars in room_day_slot_vars.values():
+            if len(r_vars) > 1:
+                self.model.AddAtMostOne(r_vars)
                     
         # Teacher max load constraint (in hours): 42h FT, 21h PT, 23h Cátedra
         for t in self.teachers:
@@ -124,9 +120,7 @@ class ScheduleSolver:
                 max_hours = self.config.catedra_hours if self.config else 23
                 
             max_slots = max_hours // 2
-            t_all_vars = [
-                self.variables[k] for k in self.variables if k[1] == t.id
-            ]
+            t_all_vars = teacher_vars[t.id]
             if t_all_vars:
                 self.model.Add(sum(t_all_vars) <= max_slots)
 
