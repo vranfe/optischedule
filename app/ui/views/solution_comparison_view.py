@@ -4,15 +4,17 @@ from PySide6.QtWidgets import (
     QProgressBar
 )
 from PySide6.QtCore import Qt
-from app.database.database import get_db
+from app.database.database import get_db, SessionLocal
 from app.database.models import ScheduleAssignment, DayOfWeek
 from app.optimization.constraint_solver import ScheduleSolver
 from app.optimization.evaluator import Evaluator
+from app.ui.workers.alternatives_worker import AlternativesWorker
 
 class SolutionComparisonView(QWidget):
     def __init__(self):
         super().__init__()
         self.solutions = []
+        self.worker = None
         self.init_ui()
 
     def init_ui(self):
@@ -51,10 +53,17 @@ class SolutionComparisonView(QWidget):
         h_layout.addLayout(btns_layout)
         layout.addWidget(header_card)
 
-        # Status note
+        # Status note & Progress bar
         self.status_lbl = QLabel("Listo para evaluar o comparar alternativas.")
         self.status_lbl.setStyleSheet("font-size: 12px; color: #475569; font-weight: 600; margin-left: 5px;")
         layout.addWidget(self.status_lbl)
+
+        self.pbar = QProgressBar()
+        self.pbar.setRange(0, 100)
+        self.pbar.setValue(0)
+        self.pbar.setTextVisible(True)
+        self.pbar.setVisible(False)
+        layout.addWidget(self.pbar)
 
         # Cards Layout for Solutions Summary
         self.cards_layout = QHBoxLayout()
@@ -94,9 +103,12 @@ class SolutionComparisonView(QWidget):
         self.evaluate_current()
 
     def evaluate_current(self):
-        db = next(get_db())
-        evaluator = Evaluator(db)
-        current_res = evaluator.evaluate()
+        db = SessionLocal()
+        try:
+            evaluator = Evaluator(db)
+            current_res = evaluator.evaluate()
+        finally:
+            db.close()
 
         self.solutions = [
             {
@@ -140,43 +152,32 @@ class SolutionComparisonView(QWidget):
         self.status_lbl.setText("✅ Evaluación del horario institucional actualizada.")
 
     def generate_and_compare_alternatives(self):
-        db = next(get_db())
-        evaluator = Evaluator(db)
-        
-        self.status_lbl.setText("⏳ Generando perfiles de optimización con CP-SAT...")
+        self.status_lbl.setText("⏳ Iniciando cálculo de alternativas en segundo plano...")
         self.gen_alts_btn.setEnabled(False)
-        
-        profiles = [
-            ("Solución Base (Equilibrada)", "balanced"),
-            ("Alternativa A (Prioridad Afinidad Docente)", "preferences"),
-            ("Alternativa B (Prioridad Aulas y Carga)", "load_balance"),
-            ("Alternativa C (Prioridad Compactación)", "compact")
-        ]
+        self.eval_btn.setEnabled(False)
+        self.pbar.setVisible(True)
+        self.pbar.setValue(0)
 
-        generated_solutions = []
-        for name, prof in profiles:
-            solver = ScheduleSolver(db, profile=prof)
-            solver.build_model()
-            res = solver.solve(time_limit_seconds=5.0)
-            if res["status"] == "SUCCESS":
-                eval_res = evaluator.evaluate(res["assignments"])
-                generated_solutions.append({
-                    "name": name,
-                    "profile": prof,
-                    "data": eval_res,
-                    "assignments": res["assignments"]
-                })
+        self.worker = AlternativesWorker(time_limit_per_profile=15.0)
+        self.worker.progress_signal.connect(self.on_worker_progress)
+        self.worker.finished_signal.connect(self.on_worker_finished)
+        self.worker.error_signal.connect(self.on_worker_error)
+        self.worker.start()
 
+    def on_worker_progress(self, percent, msg):
+        self.pbar.setValue(percent)
+        self.status_lbl.setText(f"⚙️ {msg}")
+
+    def on_worker_finished(self, generated_solutions):
         self.gen_alts_btn.setEnabled(True)
+        self.eval_btn.setEnabled(True)
+        self.pbar.setVisible(False)
 
         if not generated_solutions:
             self.status_lbl.setText("❌ No se pudieron generar soluciones alternativas factibles.")
             QMessageBox.warning(self, "Aviso", "No se encontraron soluciones alternativas factibles.")
             return
 
-        # Rank by global score descending
-        generated_solutions.sort(key=lambda x: x["data"]["global_score"], reverse=True)
-        
         self.solutions = []
         for idx, sol in enumerate(generated_solutions):
             is_best = (idx == 0)
@@ -190,6 +191,13 @@ class SolutionComparisonView(QWidget):
 
         self.render_comparison()
         self.status_lbl.setText(f"✅ Se generaron y compararon {len(self.solutions)} soluciones factibles. La mejor opción está identificada como RECOMENDADA.")
+
+    def on_worker_error(self, error_msg):
+        self.gen_alts_btn.setEnabled(True)
+        self.eval_btn.setEnabled(True)
+        self.pbar.setVisible(False)
+        self.status_lbl.setText(f"❌ Error en la generación: {error_msg}")
+        QMessageBox.critical(self, "Error", f"Ocurrió un error en el cálculo: {error_msg}")
 
     def render_comparison(self):
         # Render Cards
@@ -257,18 +265,21 @@ class SolutionComparisonView(QWidget):
         )
 
         if reply == QMessageBox.Yes:
-            db = next(get_db())
-            db.query(ScheduleAssignment).delete()
-            for asg in solution["assignments"]:
-                assignment = ScheduleAssignment(
-                    group_id=asg["group_id"],
-                    teacher_id=asg["teacher_id"],
-                    room_id=asg["room_id"],
-                    day=DayOfWeek(asg["day"]) if isinstance(asg["day"], str) else asg["day"],
-                    time_slot_id=asg["time_slot_id"]
-                )
-                db.add(assignment)
-            db.commit()
+            db = SessionLocal()
+            try:
+                db.query(ScheduleAssignment).delete()
+                for asg in solution["assignments"]:
+                    assignment = ScheduleAssignment(
+                        group_id=asg["group_id"],
+                        teacher_id=asg["teacher_id"],
+                        room_id=asg["room_id"],
+                        day=DayOfWeek(asg["day"]) if isinstance(asg["day"], str) else asg["day"],
+                        time_slot_id=asg["time_slot_id"]
+                    )
+                    db.add(assignment)
+                db.commit()
+            finally:
+                db.close()
             QMessageBox.information(self, "Horario Actualizado", f"Se ha activado exitosamente la solución '{solution['name']}'.")
             self.evaluate_current()
 

@@ -1,11 +1,11 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QTableWidget, 
     QTableWidgetItem, QMessageBox, QHBoxLayout, QProgressBar, QHeaderView,
-    QFileDialog, QFrame
+    QFileDialog, QFrame, QComboBox
 )
 from PySide6.QtCore import Qt
 import csv
-from app.database.database import get_db
+from app.database.database import get_db, SessionLocal
 from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot, Group, Teacher, Room
 from app.ui.workers.solver_worker import SolverWorker
 
@@ -34,9 +34,34 @@ class ScheduleView(QWidget):
         title_layout.addWidget(subtitle)
         header.addLayout(title_layout)
         
-        # Action Buttons
+        # Action Buttons & Filter
         btn_layout = QHBoxLayout()
         
+        # Semester Filter Combo
+        self.semester_combo = QComboBox()
+        self.semester_combo.setStyleSheet("""
+            QComboBox {
+                padding: 8px 12px;
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+                background-color: #f8fafc;
+                color: #0f172a;
+                font-weight: 600;
+                font-size: 12px;
+                min-width: 170px;
+            }
+            QComboBox:hover {
+                border-color: #3b82f6;
+            }
+        """)
+        self.semester_combo.addItem("📚 Todos los Semestres", None)
+        self.semester_combo.addItem("1️⃣ Semestre 1", 1)
+        self.semester_combo.addItem("2️⃣ Semestre 2", 2)
+        self.semester_combo.addItem("3️⃣ Semestre 3", 3)
+        self.semester_combo.addItem("4️⃣ Semestre 4", 4)
+        self.semester_combo.currentIndexChanged.connect(lambda: self.load_schedule())
+        btn_layout.addWidget(self.semester_combo)
+
         self.export_btn = QPushButton("📥 Exportar Horario (CSV)")
         self.export_btn.setCursor(Qt.PointingHandCursor)
         self.export_btn.setStyleSheet("""
@@ -135,22 +160,25 @@ class ScheduleView(QWidget):
         self.generate_btn.setText("⚡ GENERAR HORARIO ÓPTIMO")
 
         if result["status"] == "SUCCESS":
-            db = next(get_db())
-            db.query(ScheduleAssignment).delete()
-            
-            for asg in result["assignments"]:
-                assignment = ScheduleAssignment(
-                    group_id=asg["group_id"],
-                    teacher_id=asg["teacher_id"],
-                    room_id=asg["room_id"],
-                    day=DayOfWeek(asg["day"]) if isinstance(asg["day"], str) else asg["day"],
-                    time_slot_id=asg["time_slot_id"]
-                )
-                db.add(assignment)
-            db.commit()
-            
-            from app.optimization.evaluator import Evaluator
-            eval_res = Evaluator(db).evaluate()
+            db = SessionLocal()
+            try:
+                db.query(ScheduleAssignment).delete()
+                
+                for asg in result["assignments"]:
+                    assignment = ScheduleAssignment(
+                        group_id=asg["group_id"],
+                        teacher_id=asg["teacher_id"],
+                        room_id=asg["room_id"],
+                        day=DayOfWeek(asg["day"]) if isinstance(asg["day"], str) else asg["day"],
+                        time_slot_id=asg["time_slot_id"]
+                    )
+                    db.add(assignment)
+                db.commit()
+                
+                from app.optimization.evaluator import Evaluator
+                eval_res = Evaluator(db).evaluate()
+            finally:
+                db.close()
             
             msg_full = (
                 f"{result['msg']}\n\n"
@@ -177,9 +205,18 @@ class ScheduleView(QWidget):
         QMessageBox.critical(self, "Error", f"Ocurrió un error en el cálculo: {error_msg}")
         
     def load_schedule(self):
-        db = next(get_db())
-        assignments = db.query(ScheduleAssignment).all()
-        slots = db.query(TimeSlot).all()
+        db = SessionLocal()
+        try:
+            assignments = db.query(ScheduleAssignment).all()
+            slots = db.query(TimeSlot).all()
+            # Eager load relationships before closing session
+            for asg in assignments:
+                _ = asg.group.subject.name if asg.group and asg.group.subject else None
+                _ = asg.teacher.name if asg.teacher else None
+                _ = asg.room.name if asg.room else None
+                _ = asg.time_slot.shift if asg.time_slot else None
+        finally:
+            db.close()
         
         if not slots:
             return
@@ -205,6 +242,14 @@ class ScheduleView(QWidget):
             4: "#ede9fe"  # light purple
         }
 
+        # Filter by selected semester if any
+        selected_sem = self.semester_combo.currentData() if hasattr(self, 'semester_combo') else None
+        if selected_sem is not None:
+            assignments = [
+                a for a in assignments 
+                if a.group and a.group.subject and a.group.subject.semester_id == selected_sem
+            ]
+
         for asg in assignments:
             if asg.time_slot_id in slot_indices and asg.day.value in day_indices:
                 r_idx = slot_indices[asg.time_slot_id]
@@ -226,8 +271,17 @@ class ScheduleView(QWidget):
         self.table.resizeRowsToContents()
 
     def export_csv(self):
-        db = next(get_db())
-        assignments = db.query(ScheduleAssignment).all()
+        db = SessionLocal()
+        try:
+            assignments = db.query(ScheduleAssignment).all()
+            for asg in assignments:
+                _ = asg.time_slot
+                _ = asg.group.subject if asg.group else None
+                _ = asg.teacher
+                _ = asg.room
+        finally:
+            db.close()
+
         if not assignments:
             QMessageBox.warning(self, "Exportación", "No hay ningún horario generado para exportar.")
             return

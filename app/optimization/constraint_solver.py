@@ -148,7 +148,7 @@ class ScheduleSolver:
     def solve(self, time_limit_seconds=15.0):
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = float(time_limit_seconds)
-        solver.parameters.num_workers = 4
+        solver.parameters.num_workers = 8
         status = solver.Solve(self.model)
         
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:

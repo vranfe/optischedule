@@ -148,73 +148,93 @@ class MainWindow(QMainWindow):
                 self.menu_list.setCurrentRow(i)
                 break
 
-    def setup_role_navigation(self, role):
-        # Clear existing views and menu items
-        self.menu_list.clear()
+    def _clear_content(self):
+        """Safely remove and delete all previous content widgets."""
         while self.content_stack.count() > 0:
             widget = self.content_stack.widget(0)
             self.content_stack.removeWidget(widget)
+            if widget is not None:
+                widget.deleteLater()
 
-        if role == UserRole.ADMIN:
-            # Views for Universidad / Admin
-            views = [
-                ("📊 Dashboard General", DashboardView(nav_callback=self.navigate_to)),
-                ("⚡ Horario Institucional", ScheduleView()),
-                ("⚖️ Comparar Soluciones", SolutionComparisonView()),
-                ("📈 Sobrecarga Docente", WorkloadView()),
-                ("⚙️ Reglas y Restricciones", RulesView()),
-                ("📝 Preferencias Docentes", PreferencesView()),
-                ("🎯 Evaluación y Métricas", ResultsView()),
-                ("🎓 Estudiantes (CRUD)", GenericTableView(
-                    "Estudiantes", ["ID", "Nombre", "Semestre", "Inscrito", "Acuerdo Pago"],
-                    Student, ["id", "name", "semester_id", "is_enrolled", "has_payment_agreement"]
-                )),
-                ("👨‍🏫 Docentes (CRUD)", GenericTableView(
-                    "Docentes", ["ID", "Nombre", "Tipo Contrato"],
-                    Teacher, ["id", "name", "teacher_type"],
-                    enum_mappings={"teacher_type": TeacherType}
-                )),
-                ("📚 Asignaturas (CRUD)", GenericTableView(
-                    "Asignaturas", ["ID", "Nombre", "Horas Semanales", "Semestre"],
-                    Subject, ["id", "name", "hours_per_week", "semester_id"]
-                )),
-                ("👥 Grupos (CRUD)", GenericTableView(
-                    "Grupos", ["ID", "Nombre", "ID Asignatura", "Estudiantes Estimados"],
-                    Group, ["id", "name", "subject_id", "expected_students"]
-                )),
-                ("📍 Aulas (CRUD)", GenericTableView(
-                    "Aulas", ["ID", "Nombre", "Capacidad", "Tipo Aula"],
-                    Room, ["id", "name", "capacity", "room_type"]
-                ))
-            ]
+    def setup_role_navigation(self, role):
+        # Block signals to avoid cascade event with row -1 during rebuild
+        self.menu_list.blockSignals(True)
+        try:
+            self.menu_list.clear()
+            self._clear_content()
 
-        elif role == UserRole.TEACHER:
-            # Views for Docente
-            views = [
-                ("📅 Mi Horario Asignado", TeacherScheduleView()),
-                ("📝 Disponibilidad y Afinidad", PreferencesView()),
-                ("📈 Mi Carga Laboral", WorkloadView())
-            ]
+            if role == UserRole.ADMIN:
+                # Views for Universidad / Admin
+                views = [
+                    ("📊 Dashboard General", DashboardView(nav_callback=self.navigate_to)),
+                    ("⚡ Horario Institucional", ScheduleView()),
+                    ("⚖️ Comparar Soluciones", SolutionComparisonView()),
+                    ("📈 Sobrecarga Docente", WorkloadView()),
+                    ("⚙️ Reglas y Restricciones", RulesView()),
+                    ("📝 Preferencias Docentes", PreferencesView()),
+                    ("🎯 Evaluación y Métricas", ResultsView()),
+                    ("🎓 Estudiantes (CRUD)", GenericTableView(
+                        "Estudiantes", ["ID", "Nombre", "Semestre", "Inscrito", "Acuerdo Pago"],
+                        Student, ["id", "name", "semester_id", "is_enrolled", "has_payment_agreement"]
+                    )),
+                    ("👨‍🏫 Docentes (CRUD)", GenericTableView(
+                        "Docentes", ["ID", "Nombre", "Tipo Contrato"],
+                        Teacher, ["id", "name", "teacher_type"],
+                        enum_mappings={"teacher_type": TeacherType}
+                    )),
+                    ("📚 Asignaturas (CRUD)", GenericTableView(
+                        "Asignaturas", ["ID", "Nombre", "Horas Semanales", "Semestre"],
+                        Subject, ["id", "name", "hours_per_week", "semester_id"]
+                    )),
+                    ("👥 Grupos (CRUD)", GenericTableView(
+                        "Grupos", ["ID", "Nombre", "ID Asignatura", "Estudiantes Estimados"],
+                        Group, ["id", "name", "subject_id", "expected_students"]
+                    )),
+                    ("📍 Aulas (CRUD)", GenericTableView(
+                        "Aulas", ["ID", "Nombre", "Capacidad", "Tipo Aula"],
+                        Room, ["id", "name", "capacity", "room_type"]
+                    ))
+                ]
 
-        elif role == UserRole.STUDENT:
-            # Views for Estudiante
-            views = [
-                ("📅 Mi Horario Semestral", StudentScheduleView()),
-                ("☀️ Preferencia de Jornada", StudentPreferencesView())
-            ]
+            elif role == UserRole.TEACHER:
+                # Views for Docente
+                views = [
+                    ("📅 Mi Horario Asignado", TeacherScheduleView()),
+                    ("📝 Disponibilidad y Afinidad", PreferencesView()),
+                    ("📈 Mi Carga Laboral", WorkloadView())
+                ]
 
-        else:
-            views = []
+            elif role == UserRole.STUDENT:
+                # Views for Estudiante
+                views = [
+                    ("📅 Mi Horario Semestral", StudentScheduleView()),
+                    ("☀️ Preferencia de Jornada", StudentPreferencesView())
+                ]
 
-        for title, widget in views:
-            self.menu_list.addItem(title)
-            self.content_stack.addWidget(widget)
+            else:
+                views = []
 
-        if views:
-            self.menu_list.setCurrentRow(0)
+            for title, widget in views:
+                self.menu_list.addItem(title)
+                self.content_stack.addWidget(widget)
+
+            if views:
+                self.menu_list.setCurrentRow(0)
+                self.content_stack.setCurrentIndex(0)
+        finally:
+            self.menu_list.blockSignals(False)
 
     def logout(self):
         AuthService.logout()
+        self.menu_list.blockSignals(True)
+        try:
+            self.menu_list.clear()
+            self._clear_content()
+        finally:
+            self.menu_list.blockSignals(False)
+        self.user_lbl.setText("Usuario: -")
+        self.role_lbl.setText("Rol: -")
+        self.login_view.clear_fields()
         self.root_stack.setCurrentIndex(0)
 
 

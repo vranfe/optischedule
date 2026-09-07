@@ -7,7 +7,10 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 import csv
 from app.database.database import get_db
-from app.database.models import Student, ScheduleAssignment, TimeSlot, DayOfWeek, Subject, ShiftType, StudentEnrollment
+from app.database.models import (
+    Student, ScheduleAssignment, TimeSlot, DayOfWeek, Subject, ShiftType, 
+    StudentEnrollment, StudentPreference
+)
 from app.optimization.student_optimizer import StudentScheduleOptimizer
 from app.auth.session import session
 

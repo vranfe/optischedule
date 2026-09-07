@@ -1,20 +1,39 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFormLayout, QHBoxLayout
-from app.database.database import get_db
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFormLayout, QHBoxLayout, QMessageBox
+from PySide6.QtCore import QThread, Signal
+from app.database.database import SessionLocal
 from app.optimization.evaluator import Evaluator
+from app.optimization.genetic_algorithm import GeneticAlgorithmOptimizer
+
+class GAWorker(QThread):
+    finished_signal = Signal(bool, str)
+
+    def run(self):
+        db = SessionLocal()
+        try:
+            optimizer = GeneticAlgorithmOptimizer(db)
+            success, msg = optimizer.optimize()
+            self.finished_signal.emit(success, msg)
+        except Exception as e:
+            self.finished_signal.emit(False, str(e))
+        finally:
+            db.close()
 
 class ResultsView(QWidget):
     def __init__(self):
         super().__init__()
+        self.ga_worker = None
         self.layout = QVBoxLayout(self)
         
         header = QHBoxLayout()
         title = QLabel("Resultados de Evaluación")
-        title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e3a8a;")
         
-        self.refresh_btn = QPushButton("Evaluar Actual")
+        self.refresh_btn = QPushButton("🔄 Evaluar Actual")
+        self.refresh_btn.setStyleSheet("background-color: #2563eb; color: white; font-weight: bold; padding: 8px 14px; border-radius: 6px;")
         self.refresh_btn.clicked.connect(self.evaluate)
         
-        self.optimize_btn = QPushButton("Optimizar (GA/LS)")
+        self.optimize_btn = QPushButton("⚡ Optimizar (GA/LS)")
+        self.optimize_btn.setStyleSheet("background-color: #16a34a; color: white; font-weight: bold; padding: 8px 14px; border-radius: 6px;")
         self.optimize_btn.clicked.connect(self.optimize)
         
         header.addWidget(title)
@@ -44,11 +63,17 @@ class ResultsView(QWidget):
             self.labels[key] = lbl
             
         self.layout.addLayout(self.form_layout)
+
+        # Auto-evaluate on startup so view is never blank
+        self.evaluate()
         
     def evaluate(self):
-        db = next(get_db())
-        evaluator = Evaluator(db)
-        results = evaluator.evaluate()
+        db = SessionLocal()
+        try:
+            evaluator = Evaluator(db)
+            results = evaluator.evaluate()
+        finally:
+            db.close()
         
         if results["hard_constraint_violations"] == 0 and results["global_score"] > 0:
             self.labels["status"].setText("FACTIBLE (0 violaciones)")
@@ -71,22 +96,20 @@ class ResultsView(QWidget):
                     lbl.setText(str(val))
                         
     def optimize(self):
-        from app.optimization.genetic_algorithm import GeneticAlgorithmOptimizer
-        from PySide6.QtWidgets import QMessageBox
-        
         self.optimize_btn.setEnabled(False)
-        self.optimize_btn.setText("Optimizando...")
+        self.optimize_btn.setText("⏳ Optimizando (GA/LS)...")
         
-        db = next(get_db())
-        optimizer = GeneticAlgorithmOptimizer(db)
-        success, msg = optimizer.optimize()
+        self.ga_worker = GAWorker()
+        self.ga_worker.finished_signal.connect(self.on_ga_finished)
+        self.ga_worker.start()
+
+    def on_ga_finished(self, success, msg):
+        self.optimize_btn.setEnabled(True)
+        self.optimize_btn.setText("⚡ Optimizar (GA/LS)")
         
         if success:
             QMessageBox.information(self, "Optimización", msg)
             self.evaluate()
         else:
             QMessageBox.warning(self, "Optimización", msg)
-            
-        self.optimize_btn.setEnabled(True)
-        self.optimize_btn.setText("Optimizar (GA/LS)")
 

@@ -156,3 +156,8 @@ class LoginView(QWidget):
         self.username_input.setText(username)
         self.password_input.setText(password)
         self.handle_login()
+
+    def clear_fields(self):
+        self.username_input.clear()
+        self.password_input.clear()
+        self.username_input.setFocus()

@@ -1,4 +1,4 @@
-﻿from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QFrame, QPushButton, QGridLayout
 )
@@ -68,7 +68,7 @@ class DashboardView(QWidget):
         btn_gen = QPushButton("⚡ Generar Nuevo Horario")
         btn_gen.setStyleSheet("background-color: #16a34a; color: white; font-weight: bold; padding: 10px; border-radius: 6px;")
         if self.nav_callback:
-            btn_gen.clicked.connect(lambda: self.nav_callback("Generar Horario"))
+            btn_gen.clicked.connect(lambda: self.nav_callback("Horario Institucional"))
         btns_layout.addWidget(btn_gen)
 
         btn_workload = QPushButton("📊 Revisar Sobrecarga Docente")
@@ -114,9 +114,12 @@ class DashboardView(QWidget):
 
     def load_stats(self):
         db = next(get_db())
-        self.kpi_students.val_label.setText(str(db.query(Student).count()))
-        self.kpi_teachers.val_label.setText(str(db.query(Teacher).count()))
-        self.kpi_subjects.val_label.setText(str(db.query(Subject).count()))
-        self.kpi_rooms.val_label.setText(str(db.query(Room).count()))
-        self.kpi_groups.val_label.setText(str(db.query(Group).count()))
-        self.kpi_assignments.val_label.setText(str(db.query(ScheduleAssignment).count()))
+        try:
+            self.kpi_students.val_label.setText(str(db.query(Student).count()))
+            self.kpi_teachers.val_label.setText(str(db.query(Teacher).count()))
+            self.kpi_subjects.val_label.setText(str(db.query(Subject).count()))
+            self.kpi_rooms.val_label.setText(str(db.query(Room).count()))
+            self.kpi_groups.val_label.setText(str(db.query(Group).count()))
+            self.kpi_assignments.val_label.setText(str(db.query(ScheduleAssignment).count()))
+        finally:
+            db.close()

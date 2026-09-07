@@ -6,7 +6,7 @@ from datetime import time
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
-from app.database.database import get_db, init_db, Base, engine
+from app.database.database import get_db, init_db, Base, engine, SessionLocal
 from app.database.models import (
     Semester, Subject, Teacher, Room, Group, Student, 
     StudentPreference, TimeSlot, Config, TeacherType, ShiftType, DayOfWeek, 
@@ -17,10 +17,16 @@ def create_data(force_reset=False):
     if force_reset:
         Base.metadata.drop_all(bind=engine)
     init_db()
-    db = next(get_db())
     
     # Check if complete data already exists
-    user_count = db.query(User).count()
+    check_session = SessionLocal()
+    try:
+        user_count = check_session.query(User).count()
+    except Exception:
+        user_count = 0
+    finally:
+        check_session.close()
+
     if not force_reset and user_count > 10:
         print(f"Data already exists with {user_count} users. Ready.")
         return
@@ -29,7 +35,7 @@ def create_data(force_reset=False):
     # Wipe and recreate if partial/outdated
     Base.metadata.drop_all(bind=engine)
     init_db()
-    db = next(get_db())
+    db = SessionLocal()
 
     # Configuration
     config = Config(
@@ -180,6 +186,7 @@ def create_data(force_reset=False):
             group = Group(name=f"G{g}-{subj.name}", subject_id=subj.id, expected_students=expected)
             db.add(group)
     db.commit()
+    db.close()
 
     print("Complete enterprise dataset successfully generated with RBAC users!")
 
