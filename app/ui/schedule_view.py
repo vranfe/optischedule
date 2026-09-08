@@ -8,6 +8,7 @@ import csv
 from app.database.database import get_db, SessionLocal
 from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot, Group, Teacher, Room
 from app.ui.workers.solver_worker import SolverWorker
+from app.ui.dialogs.schedule_preview_dialog import SchedulePreviewDialog
 
 class ScheduleView(QWidget):
     def __init__(self):
@@ -62,7 +63,24 @@ class ScheduleView(QWidget):
         self.semester_combo.currentIndexChanged.connect(lambda: self.load_schedule())
         btn_layout.addWidget(self.semester_combo)
 
-        self.export_btn = QPushButton("📥 Exportar Horario (CSV)")
+        self.preview_modal_btn = QPushButton("👁️ Visualizar en Modal")
+        self.preview_modal_btn.setCursor(Qt.PointingHandCursor)
+        self.preview_modal_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6366f1; 
+                color: white; 
+                font-weight: bold; 
+                padding: 10px 16px;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #4f46e5;
+            }
+        """)
+        self.preview_modal_btn.clicked.connect(self.open_preview_modal)
+        btn_layout.addWidget(self.preview_modal_btn)
+
+        self.export_btn = QPushButton("📥 Exportar CSV")
         self.export_btn.setCursor(Qt.PointingHandCursor)
         self.export_btn.setStyleSheet("""
             QPushButton {
@@ -83,7 +101,7 @@ class ScheduleView(QWidget):
         self.generate_btn.setCursor(Qt.PointingHandCursor)
         self.generate_btn.setStyleSheet("""
             QPushButton {
-                background-color: #16a34a; 
+                background-color: #10b981; 
                 color: white; 
                 font-weight: bold; 
                 padding: 10px 18px;
@@ -91,7 +109,7 @@ class ScheduleView(QWidget):
                 font-size: 13px;
             }
             QPushButton:hover {
-                background-color: #15803d;
+                background-color: #059669;
             }
             QPushButton:disabled {
                 background-color: #94a3b8;
@@ -314,5 +332,38 @@ class ScheduleView(QWidget):
             QMessageBox.information(self, "Exportación Exitosa", f"El horario se ha exportado correctamente a:\n{file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error de Exportación", f"No se pudo guardar el archivo:\n{e}")
+
+    def open_preview_modal(self):
+        db = SessionLocal()
+        try:
+            assignments = db.query(ScheduleAssignment).all()
+            if not assignments:
+                QMessageBox.information(self, "Sin Asignaciones", "No hay un horario generado todavía para previsualizar. Haz clic en 'GENERAR HORARIO ÓPTIMO'.")
+                return
+
+            assignments_list = []
+            for a in assignments:
+                assignments_list.append({
+                    "group_id": a.group_id,
+                    "subject_name": a.group.subject.name if a.group and a.group.subject else "",
+                    "group_name": a.group.name if a.group else "",
+                    "teacher_name": a.teacher.name if a.teacher else "",
+                    "room_name": a.room.name if a.room else "",
+                    "day": a.day.value if hasattr(a.day, "value") else a.day,
+                    "time_slot_id": a.time_slot_id
+                })
+
+            from app.optimization.evaluator import Evaluator
+            eval_res = Evaluator(db).evaluate()
+        finally:
+            db.close()
+
+        dialog = SchedulePreviewDialog(
+            title_text="Horario Institucional Completo UMB",
+            assignments_data=assignments_list,
+            metrics=eval_res,
+            parent=self
+        )
+        dialog.exec()
 
 

@@ -302,6 +302,13 @@ class StudentScheduleView(QWidget):
         t_title = QLabel("Mi Horario Oficial Registrado")
         t_title.setStyleSheet("font-size: 17px; font-weight: 800; color: #1e3a8a;")
         t_header.addWidget(t_title)
+        t_header.addStretch()
+
+        view_modal_btn = QPushButton("👁️ Ver Mi Horario en Modal / Pantalla Completa")
+        view_modal_btn.setCursor(Qt.PointingHandCursor)
+        view_modal_btn.setStyleSheet("background-color: #6366f1; color: white; font-weight: bold; padding: 8px 16px; border-radius: 7px;")
+        view_modal_btn.clicked.connect(self.open_my_schedule_modal)
+        t_header.addWidget(view_modal_btn)
 
         export_btn = QPushButton("📥 Exportar Mi Horario (CSV)")
         export_btn.setCursor(Qt.PointingHandCursor)
@@ -441,6 +448,10 @@ class StudentScheduleView(QWidget):
             self.load_official_schedule()
         finally:
             db.close()
+
+        # Auto-run student optimization to populate alternatives and live preview immediately
+        if self.subject_checkboxes:
+            self.run_student_optimization()
 
     def run_student_optimization(self):
         db = SessionLocal()
@@ -715,3 +726,47 @@ class StudentScheduleView(QWidget):
             QMessageBox.critical(self, "Error", f"Error al exportar: {e}")
         finally:
             db.close()
+
+    def open_my_schedule_modal(self):
+        db = SessionLocal()
+        try:
+            student_id = session.student_id or 1
+            student = db.query(Student).filter_by(id=student_id).first()
+            enrollments = db.query(StudentEnrollment).filter_by(student_id=student_id).all()
+
+            if enrollments:
+                enrolled_group_ids = {e.group_id for e in enrollments}
+                assignments = db.query(ScheduleAssignment).filter(ScheduleAssignment.group_id.in_(enrolled_group_ids)).all()
+            else:
+                sem_id = student.semester_id if student else 1
+                semester_subjs = db.query(Subject).filter_by(semester_id=sem_id).all()
+                subj_ids = {s.id for s in semester_subjs}
+                all_asg = db.query(ScheduleAssignment).all()
+                assignments = [a for a in all_asg if a.group and a.group.subject_id in subj_ids]
+
+            if not assignments:
+                QMessageBox.information(self, "Sin Horario", "No hay clases registradas aún para tu horario oficial.")
+                return
+
+            assignments_list = []
+            for a in assignments:
+                assignments_list.append({
+                    "group_id": a.group_id,
+                    "subject_name": a.group.subject.name if a.group and a.group.subject else "",
+                    "group_name": a.group.name if a.group else "",
+                    "teacher_name": a.teacher.name if a.teacher else "",
+                    "room_name": a.room.name if a.room else "",
+                    "day": a.day.value if hasattr(a.day, "value") else a.day,
+                    "time_slot_id": a.time_slot_id
+                })
+
+            student_name = student.name if student else f"Estudiante {student_id}"
+        finally:
+            db.close()
+
+        dialog = SchedulePreviewDialog(
+            title_text=f"Horario Oficial Vigente - {student_name}",
+            assignments_data=assignments_list,
+            parent=self
+        )
+        dialog.exec()

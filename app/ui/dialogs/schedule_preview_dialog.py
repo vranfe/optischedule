@@ -254,7 +254,28 @@ class SchedulePreviewDialog(QDialog):
 
         # If institutional assignments format
         elif self.assignments_data:
-            for asg in self.assignments_data:
+            # Check if any asg is missing metadata
+            db = SessionLocal()
+            try:
+                group_map = {}
+                teacher_map = {}
+                room_map = {}
+                need_lookup = any(not asg.get("subject_name") for asg in self.assignments_data)
+                if need_lookup:
+                    from app.database.models import Group, Teacher, Room
+                    for g in db.query(Group).all():
+                        group_map[g.id] = (g.name, g.subject.name if g.subject else "Materia")
+                    for t in db.query(Teacher).all():
+                        teacher_map[t.id] = t.name
+                    for r in db.query(Room).all():
+                        room_map[r.id] = r.name
+            finally:
+                db.close()
+
+            # Pastel backgrounds for items
+            palette = ["#e0e7ff", "#dcfce7", "#e0f2fe", "#fef3c7", "#f3e8ff", "#ffe4e6"]
+
+            for asg_idx, asg in enumerate(self.assignments_data):
                 time_slot_id = asg.get("time_slot_id")
                 day_val = asg.get("day")
                 if hasattr(day_val, "value"):
@@ -264,10 +285,22 @@ class SchedulePreviewDialog(QDialog):
                     r_idx = slot_indices[time_slot_id]
                     c_idx = day_indices[day_val]
 
+                    subj_name = asg.get("subject_name")
+                    grp_name = asg.get("group_name")
+                    teach_name = asg.get("teacher_name")
+                    rm_name = asg.get("room_name")
+
+                    if not subj_name and asg.get("group_id") in group_map:
+                        grp_name, subj_name = group_map[asg["group_id"]]
+                    if not teach_name and asg.get("teacher_id") in teacher_map:
+                        teach_name = teacher_map[asg["teacher_id"]]
+                    if not rm_name and asg.get("room_id") in room_map:
+                        rm_name = room_map[asg["room_id"]]
+
                     text = (
-                        f"📘 {asg.get('subject_name', '')} ({asg.get('group_name', '')})\n"
-                        f"👨‍🏫 {asg.get('teacher_name', '')}\n"
-                        f"📍 {asg.get('room_name', '')}"
+                        f"📘 {subj_name or 'Asignatura'} ({grp_name or 'G1'})\n"
+                        f"👨‍🏫 {teach_name or 'Docente'}\n"
+                        f"📍 {rm_name or 'Aula'}"
                     )
                     curr = self.table.item(r_idx, c_idx)
                     if curr and curr.text():

@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox, 
-    QDoubleSpinBox, QCheckBox, QPushButton, QMessageBox, QGroupBox, 
-    QFormLayout, QDateEdit, QFrame, QScrollArea
+    QDoubleSpinBox, QCheckBox, QPushButton, QMessageBox, 
+    QFormLayout, QDateEdit, QFrame, QScrollArea, QGridLayout, QSlider
 )
 from PySide6.QtCore import QDate, Qt
 from app.database.database import get_db, SessionLocal
@@ -15,30 +15,30 @@ class RulesView(QWidget):
     def init_ui(self):
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
 
         container = QWidget()
         main_layout = QVBoxLayout(container)
-        main_layout.setSpacing(16)
+        main_layout.setSpacing(18)
         main_layout.setContentsMargins(15, 15, 15, 15)
 
         # Header Card
         header_card = QFrame()
         header_card.setStyleSheet("""
             QFrame {
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                padding: 14px 18px;
+                background-color: #ffffff;
+                border: 1.5px solid #e2e8f0;
+                border-radius: 14px;
+                padding: 16px 20px;
             }
         """)
         header = QHBoxLayout(header_card)
 
         title_layout = QVBoxLayout()
         title = QLabel("Reglas Institucionales y Calendario Académico")
-        title.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e3a8a;")
-        subtitle = QLabel("Configuración de fechas de matrícula, topes de contratación docente y ponderaciones del optimizador")
-        subtitle.setStyleSheet("font-size: 12px; color: #64748b;")
+        title.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e3a8a; letter-spacing: -0.4px;")
+        subtitle = QLabel("Configuración de ventanas de inscripción para nivelados y rezagados, límites de contratación y pesos de optimización")
+        subtitle.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 500;")
         title_layout.addWidget(title)
         title_layout.addWidget(subtitle)
         header.addLayout(title_layout)
@@ -50,8 +50,9 @@ class RulesView(QWidget):
                 background-color: #10b981; 
                 color: white; 
                 font-weight: 800; 
-                padding: 10px 22px; 
-                border-radius: 8px;
+                padding: 11px 24px; 
+                border-radius: 10px;
+                font-size: 13px;
             }
             QPushButton:hover {
                 background-color: #059669;
@@ -62,122 +63,284 @@ class RulesView(QWidget):
 
         main_layout.addWidget(header_card)
 
-        # Group 1: Academic Enrollment Dates & Leveling Calendars
-        dates_group = QGroupBox("📅 Calendario Institucional de Inscripción de Materias")
-        dates_group.setStyleSheet("QGroupBox { font-weight: 800; font-size: 14px; color: #1e3a8a; }")
-        dates_layout = QFormLayout(dates_group)
-        dates_layout.setSpacing(12)
+        # -------------------------------------------------------------
+        # 1. Calendario Institucional de Inscripción de Materias
+        # -------------------------------------------------------------
+        cal_card = QFrame()
+        cal_card.setStyleSheet("""
+            QFrame {
+                background-color: #ffffff;
+                border: 1.5px solid #e2e8f0;
+                border-radius: 14px;
+                padding: 18px;
+            }
+        """)
+        cal_layout = QVBoxLayout(cal_card)
+        cal_layout.setSpacing(14)
 
-        # Date for Regular Students
-        reg_dates_layout = QHBoxLayout()
+        cal_header = QHBoxLayout()
+        cal_title = QLabel("📅 Calendario Institucional de Inscripción de Asignaturas")
+        cal_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e3a8a;")
+        cal_header.addWidget(cal_title)
+        cal_header.addStretch()
+        cal_badge = QLabel("Período Activo: 2026-2")
+        cal_badge.setStyleSheet("background-color: #e0e7ff; color: #3730a3; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px;")
+        cal_header.addWidget(cal_badge)
+        cal_layout.addLayout(cal_header)
+
+        # Dates Subcards Grid
+        dates_grid = QGridLayout()
+        dates_grid.setSpacing(14)
+
+        # Regular Students Subcard (Mint Pastel)
+        reg_box = QFrame()
+        reg_box.setStyleSheet("""
+            QFrame {
+                background-color: #f0fdf4;
+                border: 1.5px solid #bbf7d0;
+                border-radius: 12px;
+                padding: 14px;
+            }
+        """)
+        r_layout = QVBoxLayout(reg_box)
+        r_layout.setSpacing(10)
+
+        r_head = QHBoxLayout()
+        r_title = QLabel("🎓 Estudiantes Nivelados (Regulares)")
+        r_title.setStyleSheet("font-size: 14px; font-weight: 800; color: #166534;")
+        r_badge = QLabel("Turno 1: Prioritario")
+        r_badge.setStyleSheet("background-color: #dcfce7; color: #15803d; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px;")
+        r_head.addWidget(r_title)
+        r_head.addStretch()
+        r_head.addWidget(r_badge)
+        r_layout.addLayout(r_head)
+
+        r_desc = QLabel("Alumnos que se encuentran al día con su plan de estudios y sin asignaturas pendientes de semestres anteriores.")
+        r_desc.setWordWrap(True)
+        r_desc.setStyleSheet("font-size: 11px; color: #15803d;")
+        r_layout.addWidget(r_desc)
+
+        r_form = QHBoxLayout()
+        r_form.setSpacing(8)
+
+        lbl_r_start = QLabel("Desde:")
+        lbl_r_start.setStyleSheet("font-size: 11px; font-weight: 700; color: #166534;")
         self.reg_start_edit = QDateEdit()
         self.reg_start_edit.setCalendarPopup(True)
         self.reg_start_edit.setDisplayFormat("yyyy-MM-dd")
-        
+
+        lbl_r_end = QLabel("Hasta:")
+        lbl_r_end.setStyleSheet("font-size: 11px; font-weight: 700; color: #166534;")
         self.reg_end_edit = QDateEdit()
         self.reg_end_edit.setCalendarPopup(True)
         self.reg_end_edit.setDisplayFormat("yyyy-MM-dd")
-        
-        reg_dates_layout.addWidget(QLabel("Desde:"))
-        reg_dates_layout.addWidget(self.reg_start_edit)
-        reg_dates_layout.addWidget(QLabel("Hasta:"))
-        reg_dates_layout.addWidget(self.reg_end_edit)
-        dates_layout.addRow("🎓 Estudiantes Nivelados (Al Día):", reg_dates_layout)
 
-        # Date for Irregular Students
-        irreg_dates_layout = QHBoxLayout()
+        r_form.addWidget(lbl_r_start)
+        r_form.addWidget(self.reg_start_edit)
+        r_form.addWidget(lbl_r_end)
+        r_form.addWidget(self.reg_end_edit)
+        r_layout.addLayout(r_form)
+
+        dates_grid.addWidget(reg_box, 0, 0)
+
+        # Irregular Students Subcard (Amber Pastel)
+        irreg_box = QFrame()
+        irreg_box.setStyleSheet("""
+            QFrame {
+                background-color: #fffbeb;
+                border: 1.5px solid #fde68a;
+                border-radius: 12px;
+                padding: 14px;
+            }
+        """)
+        ir_layout = QVBoxLayout(irreg_box)
+        ir_layout.setSpacing(10)
+
+        ir_head = QHBoxLayout()
+        ir_title = QLabel("⚠️ Estudiantes No Nivelados (Rezagados)")
+        ir_title.setStyleSheet("font-size: 14px; font-weight: 800; color: #92400e;")
+        ir_badge = QLabel("Turno 2: Extemporáneo")
+        ir_badge.setStyleSheet("background-color: #fef3c7; color: #b45309; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px;")
+        ir_head.addWidget(ir_title)
+        ir_head.addStretch()
+        ir_head.addWidget(ir_badge)
+        ir_layout.addLayout(ir_head)
+
+        ir_desc = QLabel("Alumnos con asignaturas pendientes o fuera de ciclo. Se habilita acceso tras finalizar el turno prioritario.")
+        ir_desc.setWordWrap(True)
+        ir_desc.setStyleSheet("font-size: 11px; color: #92400e;")
+        ir_layout.addWidget(ir_desc)
+
+        ir_form = QHBoxLayout()
+        ir_form.setSpacing(8)
+
+        lbl_ir_start = QLabel("Desde:")
+        lbl_ir_start.setStyleSheet("font-size: 11px; font-weight: 700; color: #92400e;")
         self.irreg_start_edit = QDateEdit()
         self.irreg_start_edit.setCalendarPopup(True)
         self.irreg_start_edit.setDisplayFormat("yyyy-MM-dd")
-        
+
+        lbl_ir_end = QLabel("Hasta:")
+        lbl_ir_end.setStyleSheet("font-size: 11px; font-weight: 700; color: #92400e;")
         self.irreg_end_edit = QDateEdit()
         self.irreg_end_edit.setCalendarPopup(True)
         self.irreg_end_edit.setDisplayFormat("yyyy-MM-dd")
-        
-        irreg_dates_layout.addWidget(QLabel("Desde:"))
-        irreg_dates_layout.addWidget(self.irreg_start_edit)
-        irreg_dates_layout.addWidget(QLabel("Hasta:"))
-        irreg_dates_layout.addWidget(self.irreg_end_edit)
-        dates_layout.addRow("⚠️ Estudiantes No Nivelados / Rezagados:", irreg_dates_layout)
 
-        # Current System Date Simulator
-        curr_date_layout = QHBoxLayout()
+        ir_form.addWidget(lbl_ir_start)
+        ir_form.addWidget(self.irreg_start_edit)
+        ir_form.addWidget(lbl_ir_end)
+        ir_form.addWidget(self.irreg_end_edit)
+        ir_layout.addLayout(ir_form)
+
+        dates_grid.addWidget(irreg_box, 0, 1)
+        cal_layout.addLayout(dates_grid)
+
+        # System Date Simulator Box (Lavender Pastel)
+        curr_box = QFrame()
+        curr_box.setStyleSheet("""
+            QFrame {
+                background-color: #f8fafc;
+                border: 1px solid #cbd5e1;
+                border-radius: 10px;
+                padding: 12px 16px;
+            }
+        """)
+        curr_layout = QHBoxLayout(curr_box)
+        curr_layout.setSpacing(12)
+
+        c_lbl = QLabel("🕒 <b>Fecha Simulada del Sistema:</b>")
+        c_lbl.setStyleSheet("font-size: 12px; color: #1e293b;")
+        curr_layout.addWidget(c_lbl)
+
         self.curr_date_edit = QDateEdit()
         self.curr_date_edit.setCalendarPopup(True)
         self.curr_date_edit.setDisplayFormat("yyyy-MM-dd")
-        curr_date_layout.addWidget(self.curr_date_edit)
-        
-        date_hint = QLabel("💡 <i>Simula la fecha actual del sistema para validar ventanas de inscripción en tiempo real.</i>")
-        date_hint.setStyleSheet("font-size: 11px; color: #64748b;")
-        curr_date_layout.addWidget(date_hint)
-        curr_date_layout.addStretch()
-        dates_layout.addRow("🕒 Fecha Actual del Sistema:", curr_date_layout)
+        curr_layout.addWidget(self.curr_date_edit)
 
-        main_layout.addWidget(dates_group)
+        btn_today = QPushButton("Establecer Hoy")
+        btn_today.setCursor(Qt.PointingHandCursor)
+        btn_today.setStyleSheet("background-color: #4f46e5; color: white; padding: 6px 12px; border-radius: 6px; font-size: 11px;")
+        btn_today.clicked.connect(lambda: self.curr_date_edit.setDate(QDate.currentDate()))
+        curr_layout.addWidget(btn_today)
 
-        # Group 2: Hard Constraints (Contractual Limits)
-        hard_group = QGroupBox("Restricciones Duras (Límites Contractuales y Operativos)")
-        hard_group.setStyleSheet("QGroupBox { font-weight: 800; font-size: 14px; color: #1e3a8a; }")
-        hard_layout = QFormLayout(hard_group)
-        hard_layout.setSpacing(10)
+        hint = QLabel("<i>(Permite simular el paso del tiempo para verificar si un estudiante se encuentra en fecha o fuera de fecha en tiempo real)</i>")
+        hint.setStyleSheet("font-size: 11px; color: #64748b;")
+        curr_layout.addWidget(hint)
+        curr_layout.addStretch()
+
+        cal_layout.addWidget(curr_box)
+        main_layout.addWidget(cal_card)
+
+        # -------------------------------------------------------------
+        # 2. Restricciones Duras (Límites Contractuales)
+        # -------------------------------------------------------------
+        hard_card = QFrame()
+        hard_card.setStyleSheet("""
+            QFrame {
+                background-color: #ffffff;
+                border: 1.5px solid #e2e8f0;
+                border-radius: 14px;
+                padding: 18px;
+            }
+        """)
+        h_card_layout = QVBoxLayout(hard_card)
+        h_card_layout.setSpacing(14)
+
+        hard_title = QLabel("⚡ Restricciones Duras (Límites Contractuales y Operativos)")
+        hard_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e3a8a;")
+        h_card_layout.addWidget(hard_title)
+
+        limits_grid = QGridLayout()
+        limits_grid.setSpacing(12)
 
         self.ft_spin = QSpinBox()
         self.ft_spin.setRange(10, 60)
         self.ft_spin.setSuffix(" hrs/semana")
-        hard_layout.addRow("Tope Tiempo Completo (FT):", self.ft_spin)
+        limits_grid.addWidget(self._create_input_block("👔 Docente Tiempo Completo (FT)", "Tope máximo contractual", self.ft_spin), 0, 0)
 
         self.pt_spin = QSpinBox()
         self.pt_spin.setRange(5, 40)
         self.pt_spin.setSuffix(" hrs/semana")
-        hard_layout.addRow("Tope Medio Tiempo (PT):", self.pt_spin)
+        limits_grid.addWidget(self._create_input_block("⏱️ Docente Medio Tiempo (PT)", "Tope máximo contractual", self.pt_spin), 0, 1)
 
         self.cat_spin = QSpinBox()
         self.cat_spin.setRange(4, 30)
         self.cat_spin.setSuffix(" hrs/semana")
-        hard_layout.addRow("Tope Cátedra:", self.cat_spin)
+        limits_grid.addWidget(self._create_input_block("🎓 Docente de Cátedra", "Tope máximo contractual", self.cat_spin), 1, 0)
 
         self.consec_spin = QSpinBox()
         self.consec_spin.setRange(2, 8)
         self.consec_spin.setSuffix(" hrs seguidas")
-        hard_layout.addRow("Máximo de horas continuas por docente:", self.consec_spin)
+        limits_grid.addWidget(self._create_input_block("⏳ Horas Continuas Máximas", "Límite pedagógico sin descanso", self.consec_spin), 1, 1)
 
-        self.sat_check = QCheckBox("Habilitar Sábados para clases (hasta las 17:00 / 5:00 p.m.)")
-        hard_layout.addRow("Operación Fin de Semana:", self.sat_check)
+        h_card_layout.addLayout(limits_grid)
 
-        main_layout.addWidget(hard_group)
+        # Saturday Operation Toggle Pill
+        sat_frame = QFrame()
+        sat_frame.setStyleSheet("""
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 14px;
+        """)
+        sat_layout = QHBoxLayout(sat_frame)
+        self.sat_check = QCheckBox("Habilitar Sábados para clases académicas institucionales (Jornada hasta las 17:00 / 5:00 p.m.)")
+        self.sat_check.setStyleSheet("font-weight: 700; color: #1e293b;")
+        sat_layout.addWidget(self.sat_check)
+        sat_layout.addStretch()
+        h_card_layout.addWidget(sat_frame)
 
-        # Group 3: Soft Constraints (Objective Function Weights)
-        soft_group = QGroupBox("Restricciones Blandas (Ponderaciones de Calidad de Horario)")
-        soft_group.setStyleSheet("QGroupBox { font-weight: 800; font-size: 14px; color: #1e3a8a; }")
-        soft_layout = QFormLayout(soft_group)
-        soft_layout.setSpacing(10)
+        main_layout.addWidget(hard_card)
+
+        # -------------------------------------------------------------
+        # 3. Restricciones Blandas (Ponderaciones Multicriterio)
+        # -------------------------------------------------------------
+        soft_card = QFrame()
+        soft_card.setStyleSheet("""
+            QFrame {
+                background-color: #ffffff;
+                border: 1.5px solid #e2e8f0;
+                border-radius: 14px;
+                padding: 18px;
+            }
+        """)
+        s_card_layout = QVBoxLayout(soft_card)
+        s_card_layout.setSpacing(14)
+
+        soft_title = QLabel("⚖️ Ponderaciones del Optimizador Matemático (Función Objetivo CP-SAT)")
+        soft_title.setStyleSheet("font-size: 16px; font-weight: 800; color: #1e3a8a;")
+        s_card_layout.addWidget(soft_title)
+
+        weights_grid = QGridLayout()
+        weights_grid.setSpacing(12)
 
         self.pref_weight = QDoubleSpinBox()
         self.pref_weight.setRange(0.0, 1.0)
         self.pref_weight.setSingleStep(0.05)
-        soft_layout.addRow("Peso Preferencias Docentes y Estudiantes:", self.pref_weight)
+        weights_grid.addWidget(self._create_input_block("🎯 Preferencias y Afinidad", "Prioridad asignación docente-materia", self.pref_weight), 0, 0)
 
         self.gap_weight = QDoubleSpinBox()
         self.gap_weight.setRange(0.0, 1.0)
         self.gap_weight.setSingleStep(0.05)
-        soft_layout.addRow("Peso Minimización de Huecos (Ventanas):", self.gap_weight)
+        weights_grid.addWidget(self._create_input_block("🪟 Minimización de Huecos", "Compactación horaria sin ventanas", self.gap_weight), 0, 1)
 
         self.load_weight = QDoubleSpinBox()
         self.load_weight.setRange(0.0, 1.0)
         self.load_weight.setSingleStep(0.05)
-        soft_layout.addRow("Peso Balance de Carga Laboral:", self.load_weight)
+        weights_grid.addWidget(self._create_input_block("⚖️ Balance de Carga Laboral", "Distribución equitativa docente", self.load_weight), 1, 0)
 
         self.room_weight = QDoubleSpinBox()
         self.room_weight.setRange(0.0, 1.0)
         self.room_weight.setSingleStep(0.05)
-        soft_layout.addRow("Peso Eficiencia de Uso de Aulas:", self.room_weight)
+        weights_grid.addWidget(self._create_input_block("📍 Eficiencia de Aulas", "Optimización de espacio físico", self.room_weight), 1, 1)
 
         self.dist_weight = QDoubleSpinBox()
         self.dist_weight.setRange(0.0, 1.0)
         self.dist_weight.setSingleStep(0.05)
-        soft_layout.addRow("Peso Distribución Semanal:", self.dist_weight)
+        weights_grid.addWidget(self._create_input_block("📅 Distribución Semanal", "Separación regular de sesiones", self.dist_weight), 2, 0)
 
-        main_layout.addWidget(soft_group)
+        s_card_layout.addLayout(weights_grid)
+        main_layout.addWidget(soft_card)
 
         scroll.setWidget(container)
         outer_layout = QVBoxLayout(self)
@@ -185,6 +348,29 @@ class RulesView(QWidget):
         outer_layout.addWidget(scroll)
 
         self.load_config()
+
+    def _create_input_block(self, title, desc, widget):
+        box = QFrame()
+        box.setStyleSheet("""
+            QFrame {
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+                padding: 10px 14px;
+            }
+        """)
+        l = QVBoxLayout(box)
+        l.setSpacing(4)
+
+        t = QLabel(title)
+        t.setStyleSheet("font-size: 12px; font-weight: 800; color: #1e293b;")
+        d = QLabel(desc)
+        d.setStyleSheet("font-size: 11px; color: #64748b;")
+
+        l.addWidget(t)
+        l.addWidget(d)
+        l.addWidget(widget)
+        return box
 
     def load_config(self):
         db = SessionLocal()
@@ -250,6 +436,6 @@ class RulesView(QWidget):
             config.dist_weight = self.dist_weight.value()
 
             db.commit()
-            QMessageBox.information(self, "Configuración Guardada", "Las reglas, restricciones y fechas del calendario académico se han actualizado exitosamente.")
+            QMessageBox.information(self, "Configuración Actualizada", "¡Las fechas institucionales, límites de contratación y pesos de optimización se guardaron exitosamente!")
         finally:
             db.close()
