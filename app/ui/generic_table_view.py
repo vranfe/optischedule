@@ -185,7 +185,7 @@ class GenericTableView(QWidget):
                     enum_cls = self.enum_mappings[field_name]
                     # Find enum by value or name
                     new_val = next((e for e in enum_cls if e.value.upper() == new_val_str.upper() or e.name.upper() == new_val_str.upper()), curr_attr)
-                elif isinstance(curr_attr, bool) or field_name in ["is_enrolled", "has_payment_agreement", "allow_saturday"]:
+                elif isinstance(curr_attr, bool) or field_name in ["is_enrolled", "has_payment_agreement", "allow_saturday", "is_regular"]:
                     new_val = (new_val_str.lower() in ["sí", "si", "true", "1", "yes"])
                 elif isinstance(curr_attr, int):
                     new_val = int(new_val_str) if new_val_str else 0
@@ -254,8 +254,8 @@ class GenericTableView(QWidget):
                     combo.setCurrentIndex(idx_enum)
                 form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), combo)
                 inputs[key] = combo
-            elif isinstance(curr_val, bool) or key in ["is_enrolled", "has_payment_agreement", "allow_saturday"]:
-                cb = QCheckBox("Activo / Sí")
+            elif isinstance(curr_val, bool) or key in ["is_enrolled", "has_payment_agreement", "allow_saturday", "is_regular"]:
+                cb = QCheckBox("Activo / Sí (Nivelado)")
                 cb.setChecked(bool(curr_val))
                 form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), cb)
                 inputs[key] = cb
@@ -317,8 +317,8 @@ class GenericTableView(QWidget):
                     combo.addItem(e.value, e)
                 form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), combo)
                 inputs[key] = combo
-            elif key in ["is_enrolled", "has_payment_agreement", "allow_saturday"]:
-                cb = QCheckBox("Activo / Sí")
+            elif key in ["is_enrolled", "has_payment_agreement", "allow_saturday", "is_regular"]:
+                cb = QCheckBox("Activo / Sí (Nivelado)")
                 cb.setChecked(True)
                 form_layout.addRow(QLabel(f"<b>{self.headers[idx]}:</b>"), cb)
                 inputs[key] = cb

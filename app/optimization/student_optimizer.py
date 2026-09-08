@@ -1,4 +1,4 @@
-﻿from app.database.models import ScheduleAssignment, Group, Subject, ShiftType, DayOfWeek, StudentEnrollment
+from app.database.models import ScheduleAssignment, Group, Subject, ShiftType, DayOfWeek, StudentEnrollment
 from app.database.database import get_db
 
 class StudentScheduleOptimizer:
@@ -60,10 +60,8 @@ class StudentScheduleOptimizer:
 
             current_subj = subject_list[subj_idx]
             for g_id, g_info in subject_group_slots[current_subj].items():
-                # Check for collision
                 g_slots = {(s["day"], s["time_slot_id"]) for s in g_info["slots"]}
                 if not g_slots.intersection(occupied_slots):
-                    # No collision, proceed
                     search_combinations(
                         subj_idx + 1,
                         current_groups + [(current_subj, g_id, g_info)],
@@ -72,10 +70,34 @@ class StudentScheduleOptimizer:
 
         search_combinations(0, [], set())
 
+        # If no 100% combination exists for all subjects, find best largest subset
+        if not feasible_combinations and len(subject_list) > 1:
+            from itertools import combinations
+            for subset_size in range(len(subject_list) - 1, 0, -1):
+                for sub_list in combinations(subject_list, subset_size):
+                    def search_subset(s_idx, c_groups, occ_slots):
+                        if s_idx == len(sub_list):
+                            feasible_combinations.append(list(c_groups))
+                            return
+                        c_s = sub_list[s_idx]
+                        for g_id, g_info in subject_group_slots[c_s].items():
+                            g_slots = {(s["day"], s["time_slot_id"]) for s in g_info["slots"]}
+                            if not g_slots.intersection(occ_slots):
+                                search_subset(
+                                    s_idx + 1,
+                                    c_groups + [(c_s, g_id, g_info)],
+                                    occ_slots.union(g_slots)
+                                )
+                    search_subset(0, [], set())
+                    if feasible_combinations:
+                        break
+                if feasible_combinations:
+                    break
+
         if not feasible_combinations:
             return {
                 "status": "INFEASIBLE",
-                "msg": "No existe una combinación factible sin cruces de horario para las asignaturas seleccionadas. Prueba seleccionando otros grupos o materias.",
+                "msg": "No existe una combinación factible sin cruces de horario para las asignaturas seleccionadas.",
                 "options": []
             }
 
@@ -104,7 +126,6 @@ class StudentScheduleOptimizer:
                     days_used.add(d)
                     day_slot_counts[d] = day_slot_counts.get(d, 0) + 1
 
-            # Gaps calculation: more classes per day = fewer gaps/trips
             avg_classes_per_day = total_slots / len(days_used) if days_used else 1
             compactness_score = min(1.0, avg_classes_per_day / 3.0)
 
@@ -112,12 +133,15 @@ class StudentScheduleOptimizer:
             free_days = 6 - len(days_used)
             free_day_score = min(1.0, free_days / 3.0)
 
+            # Completeness penalty if subset
+            completeness_score = len(combo) / len(selected_subject_ids)
+
             # Composite Score (0 - 100%)
             global_score = (
                 shift_score * shift_weight +
                 compactness_score * gap_weight +
                 free_day_score * free_day_weight
-            ) * 100
+            ) * completeness_score * 100
 
             scored_options.append({
                 "global_score": round(global_score, 1),
@@ -125,6 +149,8 @@ class StudentScheduleOptimizer:
                 "compactness_score": round(compactness_score * 100, 1),
                 "free_days": free_days,
                 "days_used_count": len(days_used),
+                "subjects_included": len(combo),
+                "total_requested": len(selected_subject_ids),
                 "groups": combo
             })
 
@@ -132,10 +158,17 @@ class StudentScheduleOptimizer:
         scored_options.sort(key=lambda x: x["global_score"], reverse=True)
         top_options = scored_options[:3]
 
+        all_included = (top_options[0]["subjects_included"] == len(selected_subject_ids))
+        status_msg = (
+            f"Se encontraron {len(scored_options)} combinaciones factibles sin cruce de horario."
+            if all_included else
+            f"Se encontraron combinaciones parciales ({top_options[0]['subjects_included']}/{len(selected_subject_ids)} materias) debido a cruces en el horario institucional."
+        )
+
         return {
             "status": "SUCCESS",
             "total_feasible": len(scored_options),
-            "msg": f"Se encontraron {len(scored_options)} combinaciones factibles sin cruce de horario.",
+            "msg": status_msg,
             "options": top_options
         }
 

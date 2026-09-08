@@ -3,8 +3,8 @@ from PySide6.QtWidgets import (
     QFrame, QPushButton, QGridLayout
 )
 from PySide6.QtCore import Qt
-from app.database.database import get_db
-from app.database.models import Student, Teacher, Subject, Room, Group, ScheduleAssignment
+from app.database.database import SessionLocal
+from app.database.models import Student, Teacher, Subject, Room, Group, ScheduleAssignment, Config
 
 class DashboardView(QWidget):
     def __init__(self, nav_callback=None):
@@ -14,36 +14,59 @@ class DashboardView(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(20)
+        layout.setSpacing(18)
+        layout.setContentsMargins(15, 15, 15, 15)
 
-        # Header
-        header = QHBoxLayout()
+        # Header Card
+        header_card = QFrame()
+        header_card.setStyleSheet("""
+            QFrame {
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 14px 18px;
+            }
+        """)
+        header = QHBoxLayout(header_card)
+
         title_layout = QVBoxLayout()
         title = QLabel("Panel de Control - Universidad Manuela Beltrán")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #1e3a8a;")
-        subtitle = QLabel("Monitoreo global de recursos académicos y estado del motor de optimización")
-        subtitle.setStyleSheet("font-size: 13px; color: #6b7280;")
+        title.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e3a8a;")
+        subtitle = QLabel("Monitoreo institucional de recursos, matrículas, carga docente y optimización CP-SAT")
+        subtitle.setStyleSheet("font-size: 12px; color: #64748b;")
         title_layout.addWidget(title)
         title_layout.addWidget(subtitle)
         header.addLayout(title_layout)
 
         refresh_btn = QPushButton("🔄 Refrescar Métricas")
-        refresh_btn.setStyleSheet("background-color: #2563eb; color: white; font-weight: bold; padding: 8px 16px; border-radius: 6px;")
+        refresh_btn.setCursor(Qt.PointingHandCursor)
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4f46e5;
+                color: white;
+                font-weight: 700;
+                padding: 9px 18px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #4338ca;
+            }
+        """)
         refresh_btn.clicked.connect(self.load_stats)
         header.addWidget(refresh_btn)
 
-        layout.addLayout(header)
+        layout.addWidget(header_card)
 
         # KPI Grid
         kpi_grid = QGridLayout()
-        kpi_grid.setSpacing(15)
+        kpi_grid.setSpacing(14)
 
-        self.kpi_students = self.create_stat_card("Estudiantes Registrados", "0", "#3b82f6")
-        self.kpi_teachers = self.create_stat_card("Docentes Contratados", "0", "#10b981")
-        self.kpi_subjects = self.create_stat_card("Asignaturas Malla", "0", "#8b5cf6")
-        self.kpi_rooms = self.create_stat_card("Aulas y Laboratorios", "0", "#f59e0b")
-        self.kpi_groups = self.create_stat_card("Grupos Abiertos", "0", "#06b6d4")
-        self.kpi_assignments = self.create_stat_card("Clases Programadas", "0", "#ec4899")
+        self.kpi_students = self.create_stat_card("Estudiantes Registrados", "0", "#6366f1", "#eef2ff", "🎓")
+        self.kpi_teachers = self.create_stat_card("Docentes Contratados", "0", "#10b981", "#ecfdf5", "👨‍🏫")
+        self.kpi_subjects = self.create_stat_card("Asignaturas Malla", "0", "#8b5cf6", "#f5f3ff", "📚")
+        self.kpi_rooms = self.create_stat_card("Aulas y Laboratorios", "0", "#f59e0b", "#fffbeb", "📍")
+        self.kpi_groups = self.create_stat_card("Grupos de Clase", "0", "#06b6d4", "#ecfeff", "👥")
+        self.kpi_assignments = self.create_stat_card("Clases Programadas", "0", "#ec4899", "#fdf2f8", "⚡")
 
         kpi_grid.addWidget(self.kpi_students, 0, 0)
         kpi_grid.addWidget(self.kpi_teachers, 0, 1)
@@ -56,31 +79,43 @@ class DashboardView(QWidget):
 
         # Quick Actions Card
         actions_card = QFrame()
-        actions_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;")
+        actions_card.setStyleSheet("background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px;")
         actions_layout = QVBoxLayout(actions_card)
+        actions_layout.setSpacing(12)
         
-        act_title = QLabel("Acciones Rápidas del Administrador")
-        act_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b; margin-bottom: 10px;")
+        act_title = QLabel("Acciones Rápidas de Planificación Académica")
+        act_title.setStyleSheet("font-size: 15px; font-weight: 800; color: #1e293b;")
         actions_layout.addWidget(act_title)
 
         btns_layout = QHBoxLayout()
+        btns_layout.setSpacing(12)
         
-        btn_gen = QPushButton("⚡ Generar Nuevo Horario")
-        btn_gen.setStyleSheet("background-color: #16a34a; color: white; font-weight: bold; padding: 10px; border-radius: 6px;")
+        btn_gen = QPushButton("⚡ Generar Horario Institucional")
+        btn_gen.setCursor(Qt.PointingHandCursor)
+        btn_gen.setStyleSheet("background-color: #10b981; color: white; font-weight: 800; padding: 12px; border-radius: 8px;")
         if self.nav_callback:
             btn_gen.clicked.connect(lambda: self.nav_callback("Horario Institucional"))
         btns_layout.addWidget(btn_gen)
 
-        btn_workload = QPushButton("📊 Revisar Sobrecarga Docente")
-        btn_workload.setStyleSheet("background-color: #0284c7; color: white; font-weight: bold; padding: 10px; border-radius: 6px;")
+        btn_alts = QPushButton("⚖️ Comparar Alternativas Multicriterio")
+        btn_alts.setCursor(Qt.PointingHandCursor)
+        btn_alts.setStyleSheet("background-color: #4f46e5; color: white; font-weight: 800; padding: 12px; border-radius: 8px;")
         if self.nav_callback:
-            btn_workload.clicked.connect(lambda: self.nav_callback("Sobrecarga Docente"))
+            btn_alts.clicked.connect(lambda: self.nav_callback("Comparar Soluciones"))
+        btns_layout.addWidget(btn_alts)
+
+        btn_workload = QPushButton("📊 Monitorear Carga Docente")
+        btn_workload.setCursor(Qt.PointingHandCursor)
+        btn_workload.setStyleSheet("background-color: #0284c7; color: white; font-weight: 800; padding: 12px; border-radius: 8px;")
+        if self.nav_callback:
+            btn_workload.clicked.connect(lambda: self.nav_callback("Carga y Subcarga Docente"))
         btns_layout.addWidget(btn_workload)
 
-        btn_rules = QPushButton("⚙️ Ajustar Reglas y Restricciones")
-        btn_rules.setStyleSheet("background-color: #4f46e5; color: white; font-weight: bold; padding: 10px; border-radius: 6px;")
+        btn_rules = QPushButton("📅 Calendario y Reglas")
+        btn_rules.setCursor(Qt.PointingHandCursor)
+        btn_rules.setStyleSheet("background-color: #f59e0b; color: white; font-weight: 800; padding: 12px; border-radius: 8px;")
         if self.nav_callback:
-            btn_rules.clicked.connect(lambda: self.nav_callback("Reglas y Restricciones"))
+            btn_rules.clicked.connect(lambda: self.nav_callback("Reglas y Calendario"))
         btns_layout.addWidget(btn_rules)
 
         actions_layout.addLayout(btns_layout)
@@ -89,33 +124,50 @@ class DashboardView(QWidget):
         layout.addStretch()
         self.load_stats()
 
-    def create_stat_card(self, title, default_val, color):
+    def create_stat_card(self, title, default_val, text_color, bg_color, icon=""):
         frame = QFrame()
         frame.setStyleSheet(f"""
             QFrame {{
                 background-color: #ffffff;
-                border-top: 4px solid {color};
-                border-radius: 8px;
-                padding: 15px;
-                border-left: 1px solid #e2e8f0;
-                border-right: 1px solid #e2e8f0;
-                border-bottom: 1px solid #e2e8f0;
+                border: 1.5px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 16px;
+            }}
+            QFrame:hover {{
+                border-color: {text_color};
             }}
         """)
         l = QVBoxLayout(frame)
+        l.setSpacing(6)
+
+        top_row = QHBoxLayout()
         t_lbl = QLabel(title)
-        t_lbl.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
+        t_lbl.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 700;")
+        top_row.addWidget(t_lbl)
+        top_row.addStretch()
+
+        icon_frame = QFrame()
+        icon_frame.setStyleSheet(f"background-color: {bg_color}; border-radius: 8px; padding: 4px;")
+        i_l = QHBoxLayout(icon_frame)
+        i_l.setContentsMargins(4, 2, 4, 2)
+        i_lbl = QLabel(icon)
+        i_lbl.setStyleSheet(f"font-size: 16px; background: transparent;")
+        i_l.addWidget(i_lbl)
+        top_row.addWidget(icon_frame)
+        l.addLayout(top_row)
+
         v_lbl = QLabel(default_val)
-        v_lbl.setStyleSheet(f"font-size: 26px; font-weight: bold; color: #0f172a;")
-        l.addWidget(t_lbl)
+        v_lbl.setStyleSheet(f"font-size: 26px; font-weight: 800; color: #0f172a;")
         l.addWidget(v_lbl)
         frame.val_label = v_lbl
         return frame
 
     def load_stats(self):
-        db = next(get_db())
+        db = SessionLocal()
         try:
-            self.kpi_students.val_label.setText(str(db.query(Student).count()))
+            total_students = db.query(Student).count()
+            regular_students = db.query(Student).filter_by(is_regular=True).count()
+            self.kpi_students.val_label.setText(f"{total_students} ({regular_students} Nivelados)")
             self.kpi_teachers.val_label.setText(str(db.query(Teacher).count()))
             self.kpi_subjects.val_label.setText(str(db.query(Subject).count()))
             self.kpi_rooms.val_label.setText(str(db.query(Room).count()))

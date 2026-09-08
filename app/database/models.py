@@ -42,6 +42,11 @@ class Config(Base):
     dist_weight = Column(Float, default=0.10)
     room_weight = Column(Float, default=0.10)
     payment_agreement_allowed = Column(Boolean, default=True)
+    enrollment_start_regular = Column(String, default="2026-09-01")
+    enrollment_end_regular = Column(String, default="2026-09-15")
+    enrollment_start_irregular = Column(String, default="2026-09-16")
+    enrollment_end_irregular = Column(String, default="2026-09-30")
+    system_current_date = Column(String, default="2026-09-08")
 
 class User(Base):
     __tablename__ = "users"
@@ -125,6 +130,7 @@ class Student(Base):
     semester_id = Column(Integer, ForeignKey("semesters.id"))
     has_payment_agreement = Column(Boolean, default=False)
     is_enrolled = Column(Boolean, default=True)
+    is_regular = Column(Boolean, default=True) # Nivelado (True) vs No Nivelado/Rezagado (False)
     semester = relationship("Semester", back_populates="students")
     user = relationship("User", back_populates="student", uselist=False)
     preferences = relationship("StudentPreference", back_populates="student", cascade="all, delete-orphan")

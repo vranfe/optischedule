@@ -61,6 +61,7 @@ class ScheduleSolver:
         teacher_day_slot_vars = defaultdict(list)
         room_day_slot_vars = defaultdict(list)
         teacher_vars = defaultdict(list)
+        cohort_day_slot_vars = defaultdict(list)
 
         # 1. Variables Creation (Pruned by Availability, Sábados hasta las 17:00, y Capacidad de Aulas)
         for g in self.groups:
@@ -68,6 +69,9 @@ class ScheduleSolver:
             if not valid_rooms:
                 valid_rooms = self.rooms # Fallback
             candidate_teachers = self.subject_teachers.get(g.subject_id, self.teachers)
+            cohort = g.name.split("-")[0] if "-" in g.name else "G1"
+            sem_id = g.subject.semester_id if g.subject else 1
+
             for t in candidate_teachers:
                 for r in valid_rooms:
                     for d in self.days:
@@ -86,6 +90,7 @@ class ScheduleSolver:
                                 teacher_day_slot_vars[(t.id, d.value, s.id)].append(var)
                                 room_day_slot_vars[(r.id, d.value, s.id)].append(var)
                                 teacher_vars[t.id].append(var)
+                                cohort_day_slot_vars[(sem_id, cohort, d.value, s.id)].append(var)
         
         # 2. Hard Constraints
         
@@ -100,6 +105,13 @@ class ScheduleSolver:
         for g_vars in group_day_slot_vars.values():
             if len(g_vars) > 1:
                 self.model.AddAtMostOne(g_vars)
+
+        # Academic Cohort Non-Collision Constraint:
+        # Groups belonging to the same cohort of the same semester cannot overlap in time.
+        # This guarantees students in that semester can enroll without schedule collisions.
+        for c_vars in cohort_day_slot_vars.values():
+            if len(c_vars) > 1:
+                self.model.AddAtMostOne(c_vars)
                     
         # A teacher can only teach at most one group at the same (day, time_slot)
         for t_vars in teacher_day_slot_vars.values():
@@ -124,23 +136,42 @@ class ScheduleSolver:
             if t_all_vars:
                 self.model.Add(sum(t_all_vars) <= max_slots)
 
-        # 3. Soft Constraints / Multi-Objective Function
+        # 3. Soft Constraints & Multi-Objective Function
+        # We balance: 
+        # (A) Teacher Subject Preferences
+        # (B) Teacher Workload Balance & Underload (Subcarga) Minimization for Salaried Faculty
         pref_w = self.config.pref_weight if self.config else 0.35
+        load_w = self.config.load_weight if self.config else 0.20
+        
         w_pref = max(1, int(pref_w * 10))
+        w_load = max(1, int(load_w * 10))
+        
         if self.profile == "preferences":
             w_pref = 10
+            w_load = 1
         elif self.profile == "compact":
             w_pref = 3
+            w_load = 3
         elif self.profile == "load_balance":
-            w_pref = 4
+            w_pref = 2
+            w_load = 12
 
         group_map = {g.id: g for g in self.groups}
+        teacher_map = {t.id: t for t in self.teachers}
         objective_terms = []
+
         for (g_id, t_id, r_id, d_val, s_id), var in self.variables.items():
             g = group_map.get(g_id)
-            if g:
-                score = self.pref_map.get((t_id, g.subject_id), 3)
-                objective_terms.append((score * w_pref) * var)
+            t = teacher_map.get(t_id)
+            if g and t:
+                # Preference score (1..5)
+                pref_score = self.pref_map.get((t_id, g.subject_id), 3)
+                
+                # Salaried faculty weight to avoid underload (Tiempo Completo = 3, Medio Tiempo = 2, Cátedra = 1)
+                faculty_salary_weight = 3 if t.teacher_type == TeacherType.FULL_TIME else (2 if t.teacher_type == TeacherType.PART_TIME else 1)
+                
+                term_coeff = (pref_score * w_pref) + (faculty_salary_weight * w_load)
+                objective_terms.append(term_coeff * var)
 
         if objective_terms:
             self.model.Maximize(sum(objective_terms))

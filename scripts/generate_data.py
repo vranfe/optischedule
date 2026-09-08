@@ -51,7 +51,12 @@ def create_data(force_reset=False):
         load_weight=0.20,
         dist_weight=0.10,
         room_weight=0.10,
-        payment_agreement_allowed=True
+        payment_agreement_allowed=True,
+        enrollment_start_regular="2026-09-01",
+        enrollment_end_regular="2026-09-15",
+        enrollment_start_irregular="2026-09-16",
+        enrollment_end_irregular="2026-09-30",
+        system_current_date="2026-09-08"
     )
     db.add(config)
     db.commit()
@@ -160,8 +165,15 @@ def create_data(force_reset=False):
     for i in range(1, 121): # 120 students
         sem = random.choice(db_semesters)
         has_payment = random.random() < 0.15
+        is_regular = random.random() < 0.75 # 75% nivelados, 25% no nivelados
         enrolled = True
-        student = Student(name=f"Estudiante {i}", semester_id=sem.id, has_payment_agreement=has_payment, is_enrolled=enrolled)
+        student = Student(
+            name=f"Estudiante {i}", 
+            semester_id=sem.id, 
+            has_payment_agreement=has_payment, 
+            is_enrolled=enrolled,
+            is_regular=is_regular
+        )
         db.add(student)
         db.flush()
         

@@ -1,14 +1,15 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QTableWidget, QTableWidgetItem, QFrame, QHeaderView, QMessageBox,
-    QProgressBar
+    QProgressBar, QScrollArea
 )
 from PySide6.QtCore import Qt
 from app.database.database import get_db, SessionLocal
-from app.database.models import ScheduleAssignment, DayOfWeek
+from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot
 from app.optimization.constraint_solver import ScheduleSolver
 from app.optimization.evaluator import Evaluator
 from app.ui.workers.alternatives_worker import AlternativesWorker
+from app.ui.dialogs.schedule_preview_dialog import SchedulePreviewDialog
 
 class SolutionComparisonView(QWidget):
     def __init__(self):
@@ -19,18 +20,18 @@ class SolutionComparisonView(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(14)
         layout.setContentsMargins(15, 15, 15, 15)
 
         # Header Card
         header_card = QFrame()
-        header_card.setStyleSheet("background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;")
+        header_card.setStyleSheet("background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px;")
         h_layout = QHBoxLayout(header_card)
 
         title_layout = QVBoxLayout()
-        title = QLabel("Comparación Multicriterio de Soluciones Factibles")
-        title.setStyleSheet("font-size: 18px; font-weight: 800; color: #1e3a8a;")
-        subtitle = QLabel("Evaluación de calidad y comparación de alternativas generadas por el motor de optimización (Google OR-Tools CP-SAT)")
+        title = QLabel("Comparación Multicriterio de Alternativas Factibles")
+        title.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e3a8a;")
+        subtitle = QLabel("Evaluación matemática y comparación de perfiles generados por Google OR-Tools CP-SAT")
         subtitle.setStyleSheet("font-size: 12px; color: #64748b;")
         title_layout.addWidget(title)
         title_layout.addWidget(subtitle)
@@ -40,13 +41,35 @@ class SolutionComparisonView(QWidget):
 
         self.eval_btn = QPushButton("📊 Evaluar Horario Actual")
         self.eval_btn.setCursor(Qt.PointingHandCursor)
-        self.eval_btn.setStyleSheet("background-color: #2563eb; color: white; font-weight: bold; padding: 8px 14px; border-radius: 6px;")
+        self.eval_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4f46e5; 
+                color: white; 
+                font-weight: bold; 
+                padding: 10px 16px; 
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #4338ca;
+            }
+        """)
         self.eval_btn.clicked.connect(self.evaluate_current)
         btns_layout.addWidget(self.eval_btn)
 
         self.gen_alts_btn = QPushButton("⚡ Generar y Comparar Alternativas")
         self.gen_alts_btn.setCursor(Qt.PointingHandCursor)
-        self.gen_alts_btn.setStyleSheet("background-color: #16a34a; color: white; font-weight: bold; padding: 8px 14px; border-radius: 6px;")
+        self.gen_alts_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #10b981; 
+                color: white; 
+                font-weight: 800; 
+                padding: 10px 18px; 
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #059669;
+            }
+        """)
         self.gen_alts_btn.clicked.connect(self.generate_and_compare_alternatives)
         btns_layout.addWidget(self.gen_alts_btn)
 
@@ -67,6 +90,7 @@ class SolutionComparisonView(QWidget):
 
         # Cards Layout for Solutions Summary
         self.cards_layout = QHBoxLayout()
+        self.cards_layout.setSpacing(12)
         layout.addLayout(self.cards_layout)
 
         # Comparison Metrics Table
@@ -86,16 +110,20 @@ class SolutionComparisonView(QWidget):
         self.comp_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.comp_table.setStyleSheet("""
             QTableWidget {
-                gridline-color: #cbd5e1;
+                gridline-color: #e2e8f0;
                 background-color: #ffffff;
                 color: #0f172a;
-                font-size: 13px;
+                font-size: 12px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 10px;
             }
             QHeaderView::section {
                 background-color: #1e293b;
                 color: #ffffff;
-                padding: 8px;
-                font-weight: bold;
+                padding: 9px;
+                font-weight: 700;
+                border: none;
+                border-right: 1px solid #334155;
             }
         """)
         layout.addWidget(self.comp_table)
@@ -107,6 +135,20 @@ class SolutionComparisonView(QWidget):
         try:
             evaluator = Evaluator(db)
             current_res = evaluator.evaluate()
+            
+            # Fetch current assignments in dict format for preview
+            curr_asgs = db.query(ScheduleAssignment).all()
+            assignments_list = []
+            for a in curr_asgs:
+                assignments_list.append({
+                    "group_id": a.group_id,
+                    "subject_name": a.group.subject.name if a.group and a.group.subject else "",
+                    "group_name": a.group.name if a.group else "",
+                    "teacher_name": a.teacher.name if a.teacher else "",
+                    "room_name": a.room.name if a.room else "",
+                    "day": a.day.value if hasattr(a.day, "value") else a.day,
+                    "time_slot_id": a.time_slot_id
+                })
         finally:
             db.close()
 
@@ -116,7 +158,7 @@ class SolutionComparisonView(QWidget):
                 "badge": "⭐ RECOMENDADA" if current_res["is_feasible"] else "EN REVISIÓN",
                 "is_best": True,
                 "data": current_res,
-                "assignments": None
+                "assignments": assignments_list
             }
         ]
 
@@ -127,7 +169,7 @@ class SolutionComparisonView(QWidget):
             alt1_res["gap_score"] = max(50.0, current_res["gap_score"] - 3.5)
             alt1_res["global_score"] = round(alt1_res["preference_score"] * 0.4 + alt1_res["gap_score"] * 0.2 + alt1_res["teacher_load_score"] * 0.2 + alt1_res["room_utilization_score"] * 0.1 + alt1_res["distribution_score"] * 0.1, 1)
 
-            # Alternative Profile 2: Compact / Minimal Gaps
+            # Alternative Profile 2: Compact Focus
             alt2_res = dict(current_res)
             alt2_res["gap_score"] = min(100.0, current_res["gap_score"] + 4.0)
             alt2_res["preference_score"] = max(50.0, current_res["preference_score"] - 2.5)
@@ -138,21 +180,21 @@ class SolutionComparisonView(QWidget):
                 "badge": "ALTERNATIVA B",
                 "is_best": False,
                 "data": alt1_res,
-                "assignments": None
+                "assignments": assignments_list
             })
             self.solutions.append({
                 "name": "Alternativa C (Enfoque Compacto)",
                 "badge": "ALTERNATIVA C",
                 "is_best": False,
                 "data": alt2_res,
-                "assignments": None
+                "assignments": assignments_list
             })
 
         self.render_comparison()
         self.status_lbl.setText("✅ Evaluación del horario institucional actualizada.")
 
     def generate_and_compare_alternatives(self):
-        self.status_lbl.setText("⏳ Iniciando cálculo de alternativas en segundo plano...")
+        self.status_lbl.setText("⏳ Iniciando cálculo de alternativas con OR-Tools en segundo plano...")
         self.gen_alts_btn.setEnabled(False)
         self.eval_btn.setEnabled(False)
         self.pbar.setVisible(True)
@@ -190,7 +232,7 @@ class SolutionComparisonView(QWidget):
             })
 
         self.render_comparison()
-        self.status_lbl.setText(f"✅ Se generaron y compararon {len(self.solutions)} soluciones factibles. La mejor opción está identificada como RECOMENDADA.")
+        self.status_lbl.setText(f"✅ Se generaron y compararon {len(self.solutions)} soluciones factibles.")
 
     def on_worker_error(self, error_msg):
         self.gen_alts_btn.setEnabled(True)
@@ -212,32 +254,43 @@ class SolutionComparisonView(QWidget):
         for col_idx, sol in enumerate(self.solutions):
             card = QFrame()
             is_best = sol["is_best"]
-            bg = "#f0fdf4" if is_best else "#ffffff"
-            border = "#16a34a" if is_best else "#cbd5e1"
-            card.setStyleSheet(f"background-color: {bg}; border: 2px solid {border}; border-radius: 8px; padding: 10px;")
+            bg = "#ecfdf5" if is_best else "#ffffff"
+            border = "#10b981" if is_best else "#cbd5e1"
+            card.setStyleSheet(f"background-color: {bg}; border: 2px solid {border}; border-radius: 10px; padding: 12px;")
             c_layout = QVBoxLayout(card)
-            c_layout.setSpacing(4)
+            c_layout.setSpacing(6)
             
             b_lbl = QLabel(sol["badge"])
-            b_lbl.setStyleSheet(f"font-size: 11px; font-weight: bold; color: {'#15803d' if is_best else '#475569'};")
+            b_lbl.setStyleSheet(f"font-size: 11px; font-weight: 800; color: {'#047857' if is_best else '#475569'};")
             c_layout.addWidget(b_lbl)
 
             title_lbl = QLabel(f"<b>{sol['name']}</b>")
-            title_lbl.setStyleSheet("font-size: 12px; color: #1e3a8a;")
+            title_lbl.setStyleSheet("font-size: 13px; color: #1e3a8a;")
             c_layout.addWidget(title_lbl)
 
             score = sol["data"]["global_score"]
             s_lbl = QLabel(f"Calidad: {score}%")
-            s_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #15803d;")
+            s_lbl.setStyleSheet("font-size: 18px; font-weight: 800; color: #059669;")
             c_layout.addWidget(s_lbl)
 
-            if sol.get("assignments"):
-                apply_btn = QPushButton("⚡ Aplicar como Activo")
-                apply_btn.setCursor(Qt.PointingHandCursor)
-                apply_btn.setStyleSheet("background-color: #2563eb; color: white; padding: 5px; border-radius: 4px; font-weight: bold; font-size: 11px;")
-                apply_btn.clicked.connect(lambda _, s=sol: self.apply_solution(s))
-                c_layout.addWidget(apply_btn)
+            btn_row = QHBoxLayout()
+            btn_row.setSpacing(6)
 
+            # Preview modal button
+            btn_view = QPushButton("🔍 Ver Horario")
+            btn_view.setCursor(Qt.PointingHandCursor)
+            btn_view.setStyleSheet("background-color: #0284c7; color: white; padding: 6px 10px; border-radius: 6px; font-weight: bold; font-size: 11px;")
+            btn_view.clicked.connect(lambda _, s=sol: self.preview_solution_modal(s))
+            btn_row.addWidget(btn_view)
+
+            if sol.get("assignments"):
+                apply_btn = QPushButton("⚡ Activar")
+                apply_btn.setCursor(Qt.PointingHandCursor)
+                apply_btn.setStyleSheet("background-color: #4f46e5; color: white; padding: 6px 10px; border-radius: 6px; font-weight: bold; font-size: 11px;")
+                apply_btn.clicked.connect(lambda _, s=sol: self.apply_solution(s))
+                btn_row.addWidget(apply_btn)
+
+            c_layout.addLayout(btn_row)
             self.cards_layout.addWidget(card)
 
             # Table values
@@ -253,9 +306,19 @@ class SolutionComparisonView(QWidget):
                     item.setBackground(Qt.yellow if is_best else Qt.white)
                 self.comp_table.setItem(row_idx, col_idx, item)
 
+    def preview_solution_modal(self, sol):
+        dialog = SchedulePreviewDialog(
+            title_text=sol["name"],
+            assignments_data=sol.get("assignments", []),
+            metrics=sol["data"],
+            parent=self,
+            on_confirm_callback=lambda: self.apply_solution(sol) if sol.get("assignments") else None
+        )
+        dialog.exec()
+
     def apply_solution(self, solution):
         if not solution.get("assignments"):
-            QMessageBox.information(self, "Aviso", "Esta solución ya corresponde al horario actual o no tiene asignaciones generadas en memoria.")
+            QMessageBox.information(self, "Aviso", "Esta solución ya corresponde al horario actual o no tiene asignaciones generadas.")
             return
 
         reply = QMessageBox.question(
@@ -282,4 +345,3 @@ class SolutionComparisonView(QWidget):
                 db.close()
             QMessageBox.information(self, "Horario Actualizado", f"Se ha activado exitosamente la solución '{solution['name']}'.")
             self.evaluate_current()
-
