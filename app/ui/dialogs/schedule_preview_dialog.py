@@ -1,16 +1,18 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QPushButton, QFrame, QFileDialog, QMessageBox
+    QTableWidgetItem, QHeaderView, QPushButton, QFrame, QFileDialog, 
+    QMessageBox, QSlider, QScrollArea
 )
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt
 import csv
-from app.database.database import get_db, SessionLocal
-from app.database.models import TimeSlot, DayOfWeek
+from app.database.database import SessionLocal
+from app.database.models import TimeSlot, DayOfWeek, ShiftType
 
 class SchedulePreviewDialog(QDialog):
     """
     Modal dialog to preview full weekly schedule alternatives with 
-    rich pastel visual cards and instant CSV export.
+    zoom slider, distinct shift color bands, and instant CSV export.
     """
     def __init__(self, title_text, groups_data=None, assignments_data=None, metrics=None, parent=None, on_confirm_callback=None):
         super().__init__(parent)
@@ -20,33 +22,35 @@ class SchedulePreviewDialog(QDialog):
         self.metrics = metrics or {}
         self.on_confirm_callback = on_confirm_callback
         self.days = [d.value for d in DayOfWeek]
+        self.base_row_height = 54
         
         self.setWindowTitle(f"OptiSchedule UMB - Vista Previa: {self.title_text}")
-        self.resize(1000, 680)
+        self.resize(1080, 720)
         self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(14)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+        layout.setContentsMargins(18, 18, 18, 18)
 
         # Header Card
         header_card = QFrame()
         header_card.setStyleSheet("""
             QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ffffff, stop:1 #f8fafc);
+                background: #ffffff;
                 border: 1.5px solid #e2e8f0;
                 border-radius: 12px;
-                padding: 14px 18px;
+                padding: 12px 18px;
             }
         """)
         h_layout = QHBoxLayout(header_card)
 
         info_col = QVBoxLayout()
+        info_col.setSpacing(2)
         title_lbl = QLabel(self.title_text)
         title_lbl.setStyleSheet("font-size: 18px; font-weight: 800; color: #1e3a8a;")
         
-        subtitle_text = "Distribución semanal de clases, docentes asignados y aulas correspondientes."
+        subtitle_text = "Matriz semanal completa con diferenciación por jornadas horarias (Mañana, Tarde, Noche)."
         sub_lbl = QLabel(subtitle_text)
         sub_lbl.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 500;")
         
@@ -82,33 +86,49 @@ class SchedulePreviewDialog(QDialog):
 
         layout.addWidget(header_card)
 
-        # Metrics Pills Bar
-        if self.metrics:
-            pills_layout = QHBoxLayout()
-            pills_layout.setSpacing(10)
+        # Controls & Metrics Bar (Pills + Zoom Slider + Shift Legend)
+        controls_bar = QFrame()
+        controls_bar.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px;")
+        c_layout = QHBoxLayout(controls_bar)
+        c_layout.setSpacing(12)
 
-            if "shift_score" in self.metrics:
-                pills_layout.addWidget(self._create_pill("Jornada Coincidente", f"{self.metrics['shift_score']}%", "#0284c7", "#f0f9ff"))
-            if "compactness_score" in self.metrics:
-                pills_layout.addWidget(self._create_pill("Sin Huecos / Ventanas", f"{self.metrics['compactness_score']}%", "#8b5cf6", "#f5f3ff"))
-            if "free_days" in self.metrics:
-                pills_layout.addWidget(self._create_pill("Días Libres", f"{self.metrics['free_days']} días", "#10b981", "#ecfdf5"))
-            if "subjects_included" in self.metrics:
-                pills_layout.addWidget(self._create_pill("Materias Asignadas", f"{self.metrics['subjects_included']}/{self.metrics.get('total_requested', '-')}", "#f59e0b", "#fffbeb"))
-            
-            pills_layout.addStretch()
-            layout.addLayout(pills_layout)
+        # Shift Legend Pills
+        c_layout.addWidget(self._create_legend_dot("☀️ Mañana (8-12)", "#0284c7", "#e0f2fe"))
+        c_layout.addWidget(self._create_legend_dot("⛅ Tarde (13-17)", "#059669", "#d1fae5"))
+        c_layout.addWidget(self._create_legend_dot("🌙 Noche (18-22)", "#7c3aed", "#ede9fe"))
+
+        c_layout.addStretch()
+
+        # Zoom Slider
+        zoom_label = QLabel("🔍 <b>Escala de Celdas:</b>")
+        zoom_label.setStyleSheet("color: #334155; font-size: 12px;")
+        c_layout.addWidget(zoom_label)
+
+        self.zoom_slider = QSlider(Qt.Horizontal)
+        self.zoom_slider.setRange(80, 200)
+        self.zoom_slider.setValue(100)
+        self.zoom_slider.setFixedWidth(140)
+        self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
+        c_layout.addWidget(self.zoom_slider)
+
+        self.zoom_val_lbl = QLabel("100%")
+        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 35px;")
+        c_layout.addWidget(self.zoom_val_lbl)
+
+        layout.addWidget(controls_bar)
 
         # Timetable Grid
         self.table = QTableWidget()
         self.table.setColumnCount(len(self.days))
         self.table.setHorizontalHeaderLabels(self.days)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.verticalHeader().setMinimumWidth(200)
+        self.table.verticalHeader().setDefaultSectionSize(self.base_row_height)
         self.table.setStyleSheet("""
             QTableWidget {
                 background-color: #ffffff;
                 color: #0f172a;
-                gridline-color: #e2e8f0;
+                gridline-color: #cbd5e1;
                 border: 1.5px solid #cbd5e1;
                 border-radius: 10px;
                 font-size: 12px;
@@ -116,8 +136,8 @@ class SchedulePreviewDialog(QDialog):
             QHeaderView::section {
                 background-color: #1e293b;
                 color: #ffffff;
-                padding: 9px;
-                font-weight: 700;
+                padding: 8px;
+                font-weight: 800;
                 font-size: 12px;
                 border: none;
                 border-right: 1px solid #334155;
@@ -129,7 +149,7 @@ class SchedulePreviewDialog(QDialog):
         footer_layout = QHBoxLayout()
         footer_layout.setSpacing(10)
 
-        export_btn = QPushButton("📥 Exportar Esta Alternativa (CSV)")
+        export_btn = QPushButton("📥 Exportar Horario a CSV")
         export_btn.setCursor(Qt.PointingHandCursor)
         export_btn.setStyleSheet("""
             QPushButton {
@@ -171,7 +191,7 @@ class SchedulePreviewDialog(QDialog):
         close_btn.setStyleSheet("""
             QPushButton {
                 background-color: #ffffff;
-                color: #475569;
+                color: #334155;
                 border: 1.5px solid #cbd5e1;
                 font-weight: 700;
                 padding: 10px 18px;
@@ -189,25 +209,23 @@ class SchedulePreviewDialog(QDialog):
 
         self.populate_grid()
 
-    def _create_pill(self, label, value, text_color, bg_color):
-        frame = QFrame()
-        frame.setStyleSheet(f"""
-            background-color: {bg_color};
-            border: 1px solid {text_color}40;
-            border-radius: 7px;
-            padding: 4px 10px;
-        """)
-        l = QHBoxLayout(frame)
-        l.setContentsMargins(6, 3, 6, 3)
-        l.setSpacing(6)
+    def _create_legend_dot(self, text, color, bg):
+        lbl = QLabel(f" {text} ")
+        lbl.setStyleSheet(f"background-color: {bg}; color: {color}; font-size: 11px; font-weight: bold; border-radius: 5px; padding: 3px 8px; border: 1px solid {color}40;")
+        return lbl
+
+    def on_zoom_changed(self, value):
+        self.zoom_val_lbl.setText(f"{value}%")
+        scale = value / 100.0
+        new_height = int(self.base_row_height * scale)
+        self.table.verticalHeader().setDefaultSectionSize(new_height)
         
-        lbl = QLabel(f"{label}:")
-        lbl.setStyleSheet(f"font-size: 11px; font-weight: 600; color: {text_color};")
-        val = QLabel(f"<b>{value}</b>")
-        val.setStyleSheet(f"font-size: 12px; font-weight: 800; color: {text_color};")
-        l.addWidget(lbl)
-        l.addWidget(val)
-        return frame
+        # Adjust cell font size
+        new_font_size = max(9, min(16, int(11 * scale)))
+        font = self.table.font()
+        font.setPointSize(new_font_size)
+        self.table.setFont(font)
+        self.table.resizeRowsToContents()
 
     def populate_grid(self):
         db = SessionLocal()
@@ -219,8 +237,12 @@ class SchedulePreviewDialog(QDialog):
         if not slots:
             return
 
-        slot_map = {s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" for s in slots}
-        sorted_slot_ids = sorted(slot_map.keys(), key=lambda sid: slot_map[sid])
+        sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+        slot_map = {
+            s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
+            for s in sorted_slots
+        }
+        sorted_slot_ids = [s.id for s in sorted_slots]
 
         self.table.setRowCount(len(sorted_slot_ids))
         self.table.setVerticalHeaderLabels([slot_map[sid] for sid in sorted_slot_ids])
@@ -232,6 +254,13 @@ class SchedulePreviewDialog(QDialog):
         day_indices = {d: i for i, d in enumerate(self.days)}
         slot_indices = {sid: i for i, sid in enumerate(sorted_slot_ids)}
 
+        # Shift-based pastel background colors
+        shift_colors = {
+            ShiftType.MORNING: {"bg": "#f0f9ff", "border": "#0284c7", "text": "#0369a1"},
+            ShiftType.AFTERNOON: {"bg": "#f0fdf4", "border": "#10b981", "text": "#047857"},
+            ShiftType.NIGHT: {"bg": "#faf5ff", "border": "#8b5cf6", "text": "#5b21b6"}
+        }
+
         # If student optimizer groups format
         if self.groups_data:
             for item in self.groups_data:
@@ -242,40 +271,28 @@ class SchedulePreviewDialog(QDialog):
                             r_idx = slot_indices[s["time_slot_id"]]
                             c_idx = day_indices[s["day"]]
 
+                            # Determine slot shift
+                            slot_obj = next((sl for sl in sorted_slots if sl.id == s["time_slot_id"]), None)
+                            shift_theme = shift_colors.get(slot_obj.shift, {"bg": "#f8fafc", "text": "#0f172a"}) if slot_obj else {"bg": "#f8fafc", "text": "#0f172a"}
+
                             text = (
                                 f"📘 {g_info.get('subject_name', '')}\n"
-                                f"👥 {g_info.get('group_name', '')}\n"
+                                f"👥 Grupo: {g_info.get('group_name', '')}\n"
                                 f"👨‍🏫 {g_info.get('teacher_name', '')}\n"
                                 f"📍 {g_info.get('room_name', '')}"
                             )
                             cell_item = QTableWidgetItem(text)
                             cell_item.setTextAlignment(Qt.AlignCenter)
+                            cell_item.setBackground(QColor(shift_theme["bg"]))
+                            cell_item.setForeground(QColor(shift_theme["text"]))
+                            font = cell_item.font()
+                            font.setBold(True)
+                            cell_item.setFont(font)
                             self.table.setItem(r_idx, c_idx, cell_item)
 
         # If institutional assignments format
         elif self.assignments_data:
-            # Check if any asg is missing metadata
-            db = SessionLocal()
-            try:
-                group_map = {}
-                teacher_map = {}
-                room_map = {}
-                need_lookup = any(not asg.get("subject_name") for asg in self.assignments_data)
-                if need_lookup:
-                    from app.database.models import Group, Teacher, Room
-                    for g in db.query(Group).all():
-                        group_map[g.id] = (g.name, g.subject.name if g.subject else "Materia")
-                    for t in db.query(Teacher).all():
-                        teacher_map[t.id] = t.name
-                    for r in db.query(Room).all():
-                        room_map[r.id] = r.name
-            finally:
-                db.close()
-
-            # Pastel backgrounds for items
-            palette = ["#e0e7ff", "#dcfce7", "#e0f2fe", "#fef3c7", "#f3e8ff", "#ffe4e6"]
-
-            for asg_idx, asg in enumerate(self.assignments_data):
+            for asg in self.assignments_data:
                 time_slot_id = asg.get("time_slot_id")
                 day_val = asg.get("day")
                 if hasattr(day_val, "value"):
@@ -285,22 +302,13 @@ class SchedulePreviewDialog(QDialog):
                     r_idx = slot_indices[time_slot_id]
                     c_idx = day_indices[day_val]
 
-                    subj_name = asg.get("subject_name")
-                    grp_name = asg.get("group_name")
-                    teach_name = asg.get("teacher_name")
-                    rm_name = asg.get("room_name")
-
-                    if not subj_name and asg.get("group_id") in group_map:
-                        grp_name, subj_name = group_map[asg["group_id"]]
-                    if not teach_name and asg.get("teacher_id") in teacher_map:
-                        teach_name = teacher_map[asg["teacher_id"]]
-                    if not rm_name and asg.get("room_id") in room_map:
-                        rm_name = room_map[asg["room_id"]]
+                    slot_obj = next((sl for sl in sorted_slots if sl.id == time_slot_id), None)
+                    shift_theme = shift_colors.get(slot_obj.shift, {"bg": "#f8fafc", "text": "#0f172a"}) if slot_obj else {"bg": "#f8fafc", "text": "#0f172a"}
 
                     text = (
-                        f"📘 {subj_name or 'Asignatura'} ({grp_name or 'G1'})\n"
-                        f"👨‍🏫 {teach_name or 'Docente'}\n"
-                        f"📍 {rm_name or 'Aula'}"
+                        f"📘 {asg.get('subject_name', '')} ({asg.get('group_name', '')})\n"
+                        f"👨‍🏫 {asg.get('teacher_name', '')}\n"
+                        f"📍 {asg.get('room_name', '')}"
                     )
                     curr = self.table.item(r_idx, c_idx)
                     if curr and curr.text():
@@ -308,6 +316,11 @@ class SchedulePreviewDialog(QDialog):
                     else:
                         cell_item = QTableWidgetItem(text)
                         cell_item.setTextAlignment(Qt.AlignCenter)
+                        cell_item.setBackground(QColor(shift_theme["bg"]))
+                        cell_item.setForeground(QColor(shift_theme["text"]))
+                        font = cell_item.font()
+                        font.setBold(True)
+                        cell_item.setFont(font)
                         self.table.setItem(r_idx, c_idx, cell_item)
 
         self.table.resizeRowsToContents()

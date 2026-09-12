@@ -4,10 +4,11 @@ from PySide6.QtWidgets import (
     QCheckBox, QRadioButton, QButtonGroup, QSlider, QTabWidget,
     QMessageBox, QScrollArea, QFileDialog, QGridLayout
 )
+from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt, QDate
 import csv
 from datetime import datetime
-from app.database.database import get_db, SessionLocal
+from app.database.database import SessionLocal
 from app.database.models import (
     Student, ScheduleAssignment, TimeSlot, DayOfWeek, Subject, ShiftType, 
     StudentEnrollment, StudentPreference, Config
@@ -56,7 +57,18 @@ class StudentScheduleView(QWidget):
 
         refresh_btn = QPushButton("🔄 Actualizar Datos")
         refresh_btn.setCursor(Qt.PointingHandCursor)
-        refresh_btn.setStyleSheet("background-color: #4f46e5; color: white; font-weight: bold; padding: 7px 16px; border-radius: 7px;")
+        refresh_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4f46e5; 
+                color: white; 
+                font-weight: bold; 
+                padding: 7px 16px; 
+                border-radius: 7px;
+            }
+            QPushButton:hover {
+                background-color: #4338ca;
+            }
+        """)
         refresh_btn.clicked.connect(self.load_data)
         top_info_row.addWidget(refresh_btn)
         info_layout.addLayout(top_info_row)
@@ -82,10 +94,16 @@ class StudentScheduleView(QWidget):
         # Tabs
         self.tabs = QTabWidget()
 
-        # TAB 1: Optimizer & Planner
+        # TAB 1: Optimizer & Planner (Scrollable to prevent overlapping / cut off buttons)
+        self.planner_scroll = QScrollArea()
+        self.planner_scroll.setWidgetResizable(True)
+        self.planner_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
         self.planner_tab = QWidget()
         self.setup_planner_tab()
-        self.tabs.addTab(self.planner_tab, "⚡ Planificador Personal y Alternativas")
+        self.planner_scroll.setWidget(self.planner_tab)
+
+        self.tabs.addTab(self.planner_scroll, "⚡ Planificador Personal y Alternativas")
 
         # TAB 2: Official Enrolled Timetable
         self.timetable_tab = QWidget()
@@ -98,6 +116,7 @@ class StudentScheduleView(QWidget):
     def setup_planner_tab(self):
         p_layout = QVBoxLayout(self.planner_tab)
         p_layout.setSpacing(14)
+        p_layout.setContentsMargins(10, 10, 10, 10)
 
         # Top Controls: 2 Columns
         top_row = QHBoxLayout()
@@ -138,7 +157,7 @@ class StudentScheduleView(QWidget):
         self.subj_checkboxes_layout = QVBoxLayout(self.subj_container)
         self.subj_checkboxes_layout.setSpacing(6)
         self.subj_scroll.setWidget(self.subj_container)
-        self.subj_scroll.setMinimumHeight(200)
+        self.subj_scroll.setMinimumHeight(210)
         subj_layout.addWidget(self.subj_scroll)
 
         top_row.addWidget(subj_group, 3)
@@ -149,7 +168,7 @@ class StudentScheduleView(QWidget):
         pref_layout = QVBoxLayout(pref_group)
         pref_layout.setSpacing(10)
 
-        # Shift Selector (Pill Style)
+        # Shift Selector
         shift_label = QLabel("<b>Jornada Preferida:</b>")
         shift_label.setStyleSheet("color: #0f172a; font-size: 12px;")
         pref_layout.addWidget(shift_label)
@@ -161,6 +180,10 @@ class StudentScheduleView(QWidget):
         self.rb_afternoon = QRadioButton("⛅ Tarde (13:00 - 17:00)")
         self.rb_night = QRadioButton("🌙 Noche (18:00 - 22:00)")
         self.rb_any = QRadioButton("🌐 Cualquiera")
+        
+        for rb in [self.rb_morning, self.rb_afternoon, self.rb_night, self.rb_any]:
+            rb.setStyleSheet("color: #0f172a; font-weight: 700; font-size: 12px;")
+
         self.rb_morning.setChecked(True)
 
         self.shift_btn_group.addButton(self.rb_morning, 1)
@@ -181,6 +204,7 @@ class StudentScheduleView(QWidget):
         # Slider 1: Shift Priority
         s1_row = QHBoxLayout()
         self.lbl_shift_w = QLabel("Prioridad de Jornada: <b>50%</b>")
+        self.lbl_shift_w.setStyleSheet("color: #1e293b;")
         self.shift_weight_slider = QSlider(Qt.Horizontal)
         self.shift_weight_slider.setRange(0, 100)
         self.shift_weight_slider.setValue(50)
@@ -192,6 +216,7 @@ class StudentScheduleView(QWidget):
         # Slider 2: Minimize Gaps
         s2_row = QHBoxLayout()
         self.lbl_gap_w = QLabel("Minimizar Huecos / Ventanas: <b>30%</b>")
+        self.lbl_gap_w.setStyleSheet("color: #1e293b;")
         self.gap_weight_slider = QSlider(Qt.Horizontal)
         self.gap_weight_slider.setRange(0, 100)
         self.gap_weight_slider.setValue(30)
@@ -203,6 +228,7 @@ class StudentScheduleView(QWidget):
         # Slider 3: Maximize Free Days
         s3_row = QHBoxLayout()
         self.lbl_free_w = QLabel("Maximizar Días Libres: <b>20%</b>")
+        self.lbl_free_w.setStyleSheet("color: #1e293b;")
         self.free_weight_slider = QSlider(Qt.Horizontal)
         self.free_weight_slider.setRange(0, 100)
         self.free_weight_slider.setValue(20)
@@ -239,7 +265,7 @@ class StudentScheduleView(QWidget):
         comp_group = QGroupBox("3. Alternativas Generadas por el Optimizador")
         comp_group.setStyleSheet("QGroupBox { font-weight: 800; color: #1e3a8a; }")
         comp_layout = QVBoxLayout(comp_group)
-        comp_layout.setSpacing(10)
+        comp_layout.setSpacing(12)
 
         self.options_cards_layout = QHBoxLayout()
         self.options_cards_layout.setSpacing(12)
@@ -254,7 +280,22 @@ class StudentScheduleView(QWidget):
 
         self.open_modal_btn = QPushButton("🔍 Ver en Pantalla Completa / Modal")
         self.open_modal_btn.setCursor(Qt.PointingHandCursor)
-        self.open_modal_btn.setStyleSheet("background-color: #0284c7; color: white; font-weight: bold; padding: 6px 14px; border-radius: 6px;")
+        self.open_modal_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7; 
+                color: white; 
+                font-weight: bold; 
+                padding: 7px 16px; 
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #0369a1;
+            }
+            QPushButton:disabled {
+                background-color: #cbd5e1;
+                color: #94a3b8;
+            }
+        """)
         self.open_modal_btn.setEnabled(False)
         self.open_modal_btn.clicked.connect(self.open_current_modal)
         preview_bar.addWidget(self.open_modal_btn)
@@ -265,7 +306,28 @@ class StudentScheduleView(QWidget):
         self.preview_table.setColumnCount(len(self.days))
         self.preview_table.setHorizontalHeaderLabels(self.days)
         self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.preview_table.setFixedHeight(230)
+        self.preview_table.verticalHeader().setMinimumWidth(180)
+        self.preview_table.verticalHeader().setDefaultSectionSize(48)
+        self.preview_table.setMinimumHeight(240)
+        self.preview_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #ffffff;
+                color: #0f172a;
+                gridline-color: #cbd5e1;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 10px;
+                font-size: 12px;
+            }
+            QHeaderView::section {
+                background-color: #1e293b;
+                color: #ffffff;
+                padding: 8px;
+                font-weight: 800;
+                font-size: 12px;
+                border: none;
+                border-right: 1px solid #334155;
+            }
+        """)
         comp_layout.addWidget(self.preview_table)
 
         # Save Selected Schedule Button
@@ -277,9 +339,10 @@ class StudentScheduleView(QWidget):
                 background-color: #4f46e5; 
                 color: white; 
                 font-weight: 800; 
-                padding: 12px; 
+                padding: 13px; 
                 border-radius: 8px; 
-                font-size: 13px;
+                font-size: 14px;
+                margin-top: 6px;
             }
             QPushButton:hover {
                 background-color: #4338ca;
@@ -297,18 +360,12 @@ class StudentScheduleView(QWidget):
     def setup_timetable_tab(self):
         t_layout = QVBoxLayout(self.timetable_tab)
         t_layout.setSpacing(12)
+        t_layout.setContentsMargins(10, 10, 10, 10)
 
         t_header = QHBoxLayout()
         t_title = QLabel("Mi Horario Oficial Registrado")
-        t_title.setStyleSheet("font-size: 17px; font-weight: 800; color: #1e3a8a;")
+        t_title.setStyleSheet("font-size: 18px; font-weight: 800; color: #1e3a8a;")
         t_header.addWidget(t_title)
-        t_header.addStretch()
-
-        view_modal_btn = QPushButton("👁️ Ver Mi Horario en Modal / Pantalla Completa")
-        view_modal_btn.setCursor(Qt.PointingHandCursor)
-        view_modal_btn.setStyleSheet("background-color: #6366f1; color: white; font-weight: bold; padding: 8px 16px; border-radius: 7px;")
-        view_modal_btn.clicked.connect(self.open_my_schedule_modal)
-        t_header.addWidget(view_modal_btn)
 
         export_btn = QPushButton("📥 Exportar Mi Horario (CSV)")
         export_btn.setCursor(Qt.PointingHandCursor)
@@ -321,6 +378,27 @@ class StudentScheduleView(QWidget):
         self.official_table.setColumnCount(len(self.days))
         self.official_table.setHorizontalHeaderLabels(self.days)
         self.official_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.official_table.verticalHeader().setMinimumWidth(180)
+        self.official_table.verticalHeader().setDefaultSectionSize(48)
+        self.official_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #ffffff;
+                color: #0f172a;
+                gridline-color: #cbd5e1;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 10px;
+                font-size: 12px;
+            }
+            QHeaderView::section {
+                background-color: #1e293b;
+                color: #ffffff;
+                padding: 8px;
+                font-weight: 800;
+                font-size: 12px;
+                border: none;
+                border-right: 1px solid #334155;
+            }
+        """)
         t_layout.addWidget(self.official_table)
 
     def select_all_subjects(self):
@@ -409,7 +487,6 @@ class StudentScheduleView(QWidget):
             if is_regular:
                 subjects = db.query(Subject).filter_by(semester_id=student.semester_id).all()
             else:
-                # Irregular students see their semester plus adjacent semester subjects
                 sem_ids = [max(1, student.semester_id - 1), student.semester_id, min(4, student.semester_id + 1)]
                 subjects = db.query(Subject).filter(Subject.semester_id.in_(sem_ids)).all()
 
@@ -448,10 +525,6 @@ class StudentScheduleView(QWidget):
             self.load_official_schedule()
         finally:
             db.close()
-
-        # Auto-run student optimization to populate alternatives and live preview immediately
-        if self.subject_checkboxes:
-            self.run_student_optimization()
 
     def run_student_optimization(self):
         db = SessionLocal()
@@ -537,7 +610,7 @@ class StudentScheduleView(QWidget):
                 f"• Días Libres: {opt['free_days']}\n"
                 f"• Materias: {opt['subjects_included']}/{opt['total_requested']}"
             )
-            details_lbl.setStyleSheet("font-size: 11px; color: #334155;")
+            details_lbl.setStyleSheet("font-size: 11px; color: #334155; line-height: 1.4;")
             c_layout.addWidget(details_lbl)
 
             btn_row = QHBoxLayout()
@@ -574,8 +647,12 @@ class StudentScheduleView(QWidget):
         db = SessionLocal()
         try:
             slots = db.query(TimeSlot).all()
-            slot_map = {s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" for s in slots}
-            sorted_slot_ids = sorted(slot_map.keys(), key=lambda sid: slot_map[sid])
+            sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+            slot_map = {
+                s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
+                for s in sorted_slots
+            }
+            sorted_slot_ids = [s.id for s in sorted_slots]
 
             self.preview_table.setRowCount(len(sorted_slot_ids))
             self.preview_table.setVerticalHeaderLabels([slot_map[sid] for sid in sorted_slot_ids])
@@ -587,15 +664,29 @@ class StudentScheduleView(QWidget):
             day_indices = {d: i for i, d in enumerate(self.days)}
             slot_indices = {sid: i for i, sid in enumerate(sorted_slot_ids)}
 
+            shift_bgs = {
+                ShiftType.MORNING: "#f0f9ff",
+                ShiftType.AFTERNOON: "#f0fdf4",
+                ShiftType.NIGHT: "#faf5ff"
+            }
+
             for _, _, g_info in self.current_preview_option["groups"]:
                 for s in g_info["slots"]:
                     if s["time_slot_id"] in slot_indices and s["day"] in day_indices:
                         r_idx = slot_indices[s["time_slot_id"]]
                         c_idx = day_indices[s["day"]]
 
+                        slot_obj = next((sl for sl in sorted_slots if sl.id == s["time_slot_id"]), None)
+                        bg_c = shift_bgs.get(slot_obj.shift, "#ffffff") if slot_obj else "#ffffff"
+
                         text = f"📘 {g_info['subject_name']}\n👥 {g_info['group_name']}\n👨‍🏫 {g_info['teacher_name']}\n📍 {g_info['room_name']}"
                         item = QTableWidgetItem(text)
                         item.setTextAlignment(Qt.AlignCenter)
+                        item.setBackground(QColor(bg_c))
+                        item.setForeground(QColor("#1e3a8a"))
+                        font = item.font()
+                        font.setBold(True)
+                        item.setFont(font)
                         self.preview_table.setItem(r_idx, c_idx, item)
 
             self.preview_table.resizeRowsToContents()
@@ -656,8 +747,12 @@ class StudentScheduleView(QWidget):
             enrollments = db.query(StudentEnrollment).filter_by(student_id=student_id).all()
 
             slots = db.query(TimeSlot).all()
-            slot_map = {s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" for s in slots}
-            sorted_slot_ids = sorted(slot_map.keys(), key=lambda sid: slot_map[sid])
+            sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+            slot_map = {
+                s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
+                for s in sorted_slots
+            }
+            sorted_slot_ids = [s.id for s in sorted_slots]
 
             self.official_table.setRowCount(len(sorted_slot_ids))
             self.official_table.setVerticalHeaderLabels([slot_map[sid] for sid in sorted_slot_ids])
@@ -688,6 +783,11 @@ class StudentScheduleView(QWidget):
                     text = f"📘 {asg.group.subject.name}\n👥 Grupo: {asg.group.name}\n👨‍🏫 {asg.teacher.name}\n📍 {asg.room.name}"
                     item = QTableWidgetItem(text)
                     item.setTextAlignment(Qt.AlignCenter)
+                    item.setBackground(QColor("#eff6ff"))
+                    item.setForeground(QColor("#1e3a8a"))
+                    font = item.font()
+                    font.setBold(True)
+                    item.setFont(font)
                     self.official_table.setItem(r_idx, c_idx, item)
 
             self.official_table.resizeRowsToContents()
@@ -726,47 +826,3 @@ class StudentScheduleView(QWidget):
             QMessageBox.critical(self, "Error", f"Error al exportar: {e}")
         finally:
             db.close()
-
-    def open_my_schedule_modal(self):
-        db = SessionLocal()
-        try:
-            student_id = session.student_id or 1
-            student = db.query(Student).filter_by(id=student_id).first()
-            enrollments = db.query(StudentEnrollment).filter_by(student_id=student_id).all()
-
-            if enrollments:
-                enrolled_group_ids = {e.group_id for e in enrollments}
-                assignments = db.query(ScheduleAssignment).filter(ScheduleAssignment.group_id.in_(enrolled_group_ids)).all()
-            else:
-                sem_id = student.semester_id if student else 1
-                semester_subjs = db.query(Subject).filter_by(semester_id=sem_id).all()
-                subj_ids = {s.id for s in semester_subjs}
-                all_asg = db.query(ScheduleAssignment).all()
-                assignments = [a for a in all_asg if a.group and a.group.subject_id in subj_ids]
-
-            if not assignments:
-                QMessageBox.information(self, "Sin Horario", "No hay clases registradas aún para tu horario oficial.")
-                return
-
-            assignments_list = []
-            for a in assignments:
-                assignments_list.append({
-                    "group_id": a.group_id,
-                    "subject_name": a.group.subject.name if a.group and a.group.subject else "",
-                    "group_name": a.group.name if a.group else "",
-                    "teacher_name": a.teacher.name if a.teacher else "",
-                    "room_name": a.room.name if a.room else "",
-                    "day": a.day.value if hasattr(a.day, "value") else a.day,
-                    "time_slot_id": a.time_slot_id
-                })
-
-            student_name = student.name if student else f"Estudiante {student_id}"
-        finally:
-            db.close()
-
-        dialog = SchedulePreviewDialog(
-            title_text=f"Horario Oficial Vigente - {student_name}",
-            assignments_data=assignments_list,
-            parent=self
-        )
-        dialog.exec()

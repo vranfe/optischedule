@@ -1,19 +1,20 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QTableWidget, 
     QTableWidgetItem, QMessageBox, QHBoxLayout, QProgressBar, QHeaderView,
-    QFileDialog, QFrame, QComboBox
+    QFileDialog, QFrame, QComboBox, QSlider
 )
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt
 import csv
-from app.database.database import get_db, SessionLocal
-from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot, Group, Teacher, Room
+from app.database.database import SessionLocal
+from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot, Group, Teacher, Room, ShiftType
 from app.ui.workers.solver_worker import SolverWorker
-from app.ui.dialogs.schedule_preview_dialog import SchedulePreviewDialog
 
 class ScheduleView(QWidget):
     def __init__(self):
         super().__init__()
         self.worker = None
+        self.base_row_height = 50
         self.init_ui()
 
     def init_ui(self):
@@ -23,12 +24,12 @@ class ScheduleView(QWidget):
         
         # Header Card
         header_card = QFrame()
-        header_card.setStyleSheet("background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;")
+        header_card.setStyleSheet("background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px;")
         header = QHBoxLayout(header_card)
         
         title_layout = QVBoxLayout()
         title = QLabel("Motor de Optimización y Matriz Institucional de Horarios")
-        title.setStyleSheet("font-size: 18px; font-weight: 800; color: #1e3a8a;")
+        title.setStyleSheet("font-size: 20px; font-weight: 800; color: #1e3a8a;")
         subtitle = QLabel("Programación Matemática con Restricciones Duras y Blandas (Google OR-Tools CP-SAT)")
         subtitle.setStyleSheet("font-size: 12px; color: #64748b;")
         title_layout.addWidget(title)
@@ -37,22 +38,23 @@ class ScheduleView(QWidget):
         
         # Action Buttons & Filter
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(8)
         
         # Semester Filter Combo
         self.semester_combo = QComboBox()
         self.semester_combo.setStyleSheet("""
             QComboBox {
-                padding: 8px 12px;
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
+                padding: 8px 14px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 8px;
                 background-color: #f8fafc;
                 color: #0f172a;
-                font-weight: 600;
+                font-weight: 700;
                 font-size: 12px;
-                min-width: 170px;
+                min-width: 180px;
             }
             QComboBox:hover {
-                border-color: #3b82f6;
+                border-color: #4f46e5;
             }
         """)
         self.semester_combo.addItem("📚 Todos los Semestres", None)
@@ -63,23 +65,6 @@ class ScheduleView(QWidget):
         self.semester_combo.currentIndexChanged.connect(lambda: self.load_schedule())
         btn_layout.addWidget(self.semester_combo)
 
-        self.preview_modal_btn = QPushButton("👁️ Visualizar en Modal")
-        self.preview_modal_btn.setCursor(Qt.PointingHandCursor)
-        self.preview_modal_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #6366f1; 
-                color: white; 
-                font-weight: bold; 
-                padding: 10px 16px;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #4f46e5;
-            }
-        """)
-        self.preview_modal_btn.clicked.connect(self.open_preview_modal)
-        btn_layout.addWidget(self.preview_modal_btn)
-
         self.export_btn = QPushButton("📥 Exportar CSV")
         self.export_btn.setCursor(Qt.PointingHandCursor)
         self.export_btn.setStyleSheet("""
@@ -87,8 +72,8 @@ class ScheduleView(QWidget):
                 background-color: #0284c7; 
                 color: white; 
                 font-weight: bold; 
-                padding: 10px 16px;
-                border-radius: 6px;
+                padding: 9px 16px;
+                border-radius: 8px;
             }
             QPushButton:hover {
                 background-color: #0369a1;
@@ -103,9 +88,9 @@ class ScheduleView(QWidget):
             QPushButton {
                 background-color: #10b981; 
                 color: white; 
-                font-weight: bold; 
-                padding: 10px 18px;
-                border-radius: 6px;
+                font-weight: 800; 
+                padding: 9px 18px;
+                border-radius: 8px;
                 font-size: 13px;
             }
             QPushButton:hover {
@@ -121,6 +106,34 @@ class ScheduleView(QWidget):
         header.addLayout(btn_layout)
         self.layout.addWidget(header_card)
         
+        # Legend & Zoom Bar
+        legend_card = QFrame()
+        legend_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px;")
+        l_layout = QHBoxLayout(legend_card)
+        l_layout.setSpacing(10)
+
+        l_layout.addWidget(self._create_legend_dot("☀️ Mañana (8-12)", "#0284c7", "#e0f2fe"))
+        l_layout.addWidget(self._create_legend_dot("⛅ Tarde (13-17)", "#059669", "#d1fae5"))
+        l_layout.addWidget(self._create_legend_dot("🌙 Noche (18-22)", "#7c3aed", "#ede9fe"))
+        l_layout.addStretch()
+
+        zoom_lbl = QLabel("🔍 <b>Escala:</b>")
+        zoom_lbl.setStyleSheet("color: #334155; font-size: 12px;")
+        l_layout.addWidget(zoom_lbl)
+
+        self.zoom_slider = QSlider(Qt.Horizontal)
+        self.zoom_slider.setRange(80, 180)
+        self.zoom_slider.setValue(100)
+        self.zoom_slider.setFixedWidth(120)
+        self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
+        l_layout.addWidget(self.zoom_slider)
+
+        self.zoom_val_lbl = QLabel("100%")
+        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 35px;")
+        l_layout.addWidget(self.zoom_val_lbl)
+
+        self.layout.addWidget(legend_card)
+
         # Progress & Status Bar
         self.progress_container = QVBoxLayout()
         self.status_lbl = QLabel("Listo para generar.")
@@ -140,26 +153,50 @@ class ScheduleView(QWidget):
         self.table.setColumnCount(len(self.days))
         self.table.setHorizontalHeaderLabels(self.days)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.verticalHeader().setMinimumWidth(180)
+        self.table.verticalHeader().setDefaultSectionSize(self.base_row_height)
         self.table.setStyleSheet("""
             QTableWidget {
                 gridline-color: #cbd5e1;
                 background-color: #ffffff;
                 color: #0f172a;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 10px;
+                font-size: 12px;
             }
             QHeaderView::section {
                 background-color: #1e293b;
                 color: #ffffff;
                 padding: 8px;
-                font-weight: bold;
+                font-weight: 800;
+                font-size: 12px;
+                border: none;
+                border-right: 1px solid #334155;
             }
         """)
         self.layout.addWidget(self.table)
         
         self.load_schedule()
 
+    def _create_legend_dot(self, text, color, bg):
+        lbl = QLabel(f" {text} ")
+        lbl.setStyleSheet(f"background-color: {bg}; color: {color}; font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; border: 1px solid {color}40;")
+        return lbl
+
+    def on_zoom_changed(self, value):
+        self.zoom_val_lbl.setText(f"{value}%")
+        scale = value / 100.0
+        new_height = int(self.base_row_height * scale)
+        self.table.verticalHeader().setDefaultSectionSize(new_height)
+        new_font_size = max(9, min(15, int(11 * scale)))
+        font = self.table.font()
+        font.setPointSize(new_font_size)
+        self.table.setFont(font)
+        self.table.resizeRowsToContents()
+
     def start_generation(self):
         self.generate_btn.setEnabled(False)
-        self.generate_btn.setText("⏳ Optimizando en segundo plano...")
+        self.generate_btn.setText("⏳ Optimizando con CP-SAT...")
         self.pbar.setValue(0)
         self.status_lbl.setText("Iniciando hilo de optimización...")
 
@@ -200,17 +237,17 @@ class ScheduleView(QWidget):
             
             msg_full = (
                 f"{result['msg']}\n\n"
-                f"📊 Métricas de Calidad de la Solución Recomendada:\n"
-                f"• Calidad Global Ponderada: {eval_res['global_score']}%\n"
+                f"📊 Métricas de Calidad:\n"
+                f"• Calidad Global: {eval_res['global_score']}%\n"
                 f"• Satisfacción de Preferencias: {eval_res['preference_score']}%\n"
                 f"• Minimización de Huecos: {eval_res['gap_score']}%\n"
-                f"• Balance de Carga Docente: {eval_res['teacher_load_score']}%\n"
+                f"• Balance de Carga: {eval_res['teacher_load_score']}%\n"
                 f"• Utilización de Aulas: {eval_res['room_utilization_score']}%\n"
                 f"• Distribución Semanal: {eval_res['distribution_score']}%"
             )
             
             self.status_lbl.setText(f"✅ {result['msg']} | Calidad: {eval_res['global_score']}% ({eval_res['status']})")
-            QMessageBox.information(self, "Optimización Completada", msg_full)
+            QMessageBox.information(self, "Optimización Exitosa", msg_full)
             self.load_schedule()
         else:
             self.status_lbl.setText("❌ No se encontró solución factible.")
@@ -227,7 +264,6 @@ class ScheduleView(QWidget):
         try:
             assignments = db.query(ScheduleAssignment).all()
             slots = db.query(TimeSlot).all()
-            # Eager load relationships before closing session
             for asg in assignments:
                 _ = asg.group.subject.name if asg.group and asg.group.subject else None
                 _ = asg.teacher.name if asg.teacher else None
@@ -239,8 +275,12 @@ class ScheduleView(QWidget):
         if not slots:
             return
             
-        slot_map = {s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" for s in slots}
-        sorted_slot_ids = sorted(slot_map.keys(), key=lambda sid: slot_map[sid])
+        sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+        slot_map = {
+            s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
+            for s in sorted_slots
+        }
+        sorted_slot_ids = [s.id for s in sorted_slots]
         
         self.table.setRowCount(len(sorted_slot_ids))
         self.table.setVerticalHeaderLabels([slot_map[sid] for sid in sorted_slot_ids])
@@ -252,15 +292,13 @@ class ScheduleView(QWidget):
         day_indices = {d: i for i, d in enumerate(self.days)}
         slot_indices = {sid: i for i, sid in enumerate(sorted_slot_ids)}
         
-        # Colorful palette for distinct semesters
-        colors = {
-            1: "#dbeafe", # light blue
-            2: "#d1fae5", # light green
-            3: "#fef3c7", # light yellow
-            4: "#ede9fe"  # light purple
+        # Shift colors
+        shift_colors = {
+            ShiftType.MORNING: "#f0f9ff",
+            ShiftType.AFTERNOON: "#f0fdf4",
+            ShiftType.NIGHT: "#faf5ff"
         }
 
-        # Filter by selected semester if any
         selected_sem = self.semester_combo.currentData() if hasattr(self, 'semester_combo') else None
         if selected_sem is not None:
             assignments = [
@@ -273,8 +311,8 @@ class ScheduleView(QWidget):
                 r_idx = slot_indices[asg.time_slot_id]
                 c_idx = day_indices[asg.day.value]
                 
-                sem_num = asg.group.subject.semester_id if asg.group and asg.group.subject else 1
-                bg_color = colors.get(sem_num, "#f1f5f9")
+                slot_obj = next((sl for sl in sorted_slots if sl.id == asg.time_slot_id), None)
+                bg_color = shift_colors.get(slot_obj.shift, "#ffffff") if slot_obj else "#ffffff"
 
                 text = f"📘 {asg.group.subject.name} ({asg.group.name})\n👨‍🏫 {asg.teacher.name}\n📍 {asg.room.name}"
                 
@@ -284,6 +322,11 @@ class ScheduleView(QWidget):
                 else:
                     new_item = QTableWidgetItem(text)
                     new_item.setTextAlignment(Qt.AlignCenter)
+                    new_item.setBackground(QColor(bg_color))
+                    new_item.setForeground(QColor("#1e3a8a"))
+                    font = new_item.font()
+                    font.setBold(True)
+                    new_item.setFont(font)
                     self.table.setItem(r_idx, c_idx, new_item)
         
         self.table.resizeRowsToContents()
@@ -332,38 +375,3 @@ class ScheduleView(QWidget):
             QMessageBox.information(self, "Exportación Exitosa", f"El horario se ha exportado correctamente a:\n{file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error de Exportación", f"No se pudo guardar el archivo:\n{e}")
-
-    def open_preview_modal(self):
-        db = SessionLocal()
-        try:
-            assignments = db.query(ScheduleAssignment).all()
-            if not assignments:
-                QMessageBox.information(self, "Sin Asignaciones", "No hay un horario generado todavía para previsualizar. Haz clic en 'GENERAR HORARIO ÓPTIMO'.")
-                return
-
-            assignments_list = []
-            for a in assignments:
-                assignments_list.append({
-                    "group_id": a.group_id,
-                    "subject_name": a.group.subject.name if a.group and a.group.subject else "",
-                    "group_name": a.group.name if a.group else "",
-                    "teacher_name": a.teacher.name if a.teacher else "",
-                    "room_name": a.room.name if a.room else "",
-                    "day": a.day.value if hasattr(a.day, "value") else a.day,
-                    "time_slot_id": a.time_slot_id
-                })
-
-            from app.optimization.evaluator import Evaluator
-            eval_res = Evaluator(db).evaluate()
-        finally:
-            db.close()
-
-        dialog = SchedulePreviewDialog(
-            title_text="Horario Institucional Completo UMB",
-            assignments_data=assignments_list,
-            metrics=eval_res,
-            parent=self
-        )
-        dialog.exec()
-
-
