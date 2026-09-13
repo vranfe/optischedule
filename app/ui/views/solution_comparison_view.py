@@ -1,8 +1,9 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QTableWidget, QTableWidgetItem, QFrame, QHeaderView, QMessageBox,
-    QProgressBar, QScrollArea
+    QProgressBar, QScrollArea, QSlider
 )
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt
 from app.database.database import get_db, SessionLocal
 from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot
@@ -108,6 +109,7 @@ class SolutionComparisonView(QWidget):
         self.comp_table.setRowCount(len(self.metrics))
         self.comp_table.setVerticalHeaderLabels([m[0] for m in self.metrics])
         self.comp_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.comp_table.setMaximumHeight(230)
         self.comp_table.setStyleSheet("""
             QTableWidget {
                 gridline-color: #e2e8f0;
@@ -128,6 +130,129 @@ class SolutionComparisonView(QWidget):
         """)
         layout.addWidget(self.comp_table)
 
+        # Embedded Live Schedule Preview
+        preview_card = QFrame()
+        preview_card.setStyleSheet("background-color: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px;")
+        p_card_layout = QVBoxLayout(preview_card)
+        p_card_layout.setSpacing(10)
+
+        p_header = QHBoxLayout()
+        self.preview_title_lbl = QLabel("📅 Matriz Semanal de la Alternativa Seleccionada: Horario Institucional Vigente")
+        self.preview_title_lbl.setStyleSheet("font-size: 14px; font-weight: 800; color: #1e3a8a;")
+        p_header.addWidget(self.preview_title_lbl)
+        p_header.addStretch()
+
+        slider_lbl = QLabel("🎚️ <b>Altura:</b>")
+        slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
+        p_header.addWidget(slider_lbl)
+
+        from PySide6.QtWidgets import QSlider
+        self.preview_slider = QSlider(Qt.Horizontal)
+        self.preview_slider.setRange(45, 130)
+        self.preview_slider.setValue(55)
+        self.preview_slider.setFixedWidth(110)
+        self.preview_slider.valueChanged.connect(self.on_preview_slider_changed)
+        p_header.addWidget(self.preview_slider)
+
+        self.preview_modal_btn = QPushButton("🔍 Ver en Pantalla Completa")
+        self.preview_modal_btn.setCursor(Qt.PointingHandCursor)
+        self.preview_modal_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7; 
+                color: white; 
+                font-weight: bold; 
+                padding: 6px 14px; 
+                border-radius: 6px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #0369a1;
+            }
+        """)
+        self.preview_modal_btn.clicked.connect(self.open_current_selected_modal)
+        p_header.addWidget(self.preview_modal_btn)
+        p_card_layout.addLayout(p_header)
+
+        # Table + Lateral Slider Container
+        table_container = QHBoxLayout()
+        table_container.setSpacing(8)
+
+        self.schedule_table = QTableWidget()
+        self.days = [d.value for d in DayOfWeek]
+        self.schedule_table.setColumnCount(len(self.days))
+        self.schedule_table.setHorizontalHeaderLabels(self.days)
+        self.schedule_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.schedule_table.verticalHeader().setMinimumWidth(180)
+        self.schedule_table.verticalHeader().setDefaultSectionSize(55)
+        self.schedule_table.setMinimumHeight(240)
+        self.schedule_table.setStyleSheet("""
+            QTableWidget {
+                gridline-color: #cbd5e1;
+                background-color: #ffffff;
+                color: #0f172a;
+                font-size: 12px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 10px;
+            }
+            QHeaderView::section {
+                background-color: #1e293b;
+                color: #ffffff;
+                padding: 8px;
+                font-weight: bold;
+            }
+        """)
+        table_container.addWidget(self.schedule_table, 1)
+
+        # Lateral Navigation Slider Box
+        lateral_box = QVBoxLayout()
+        lateral_box.setSpacing(4)
+        lateral_box.setAlignment(Qt.AlignCenter)
+
+        top_icon = QLabel("☀️")
+        top_icon.setAlignment(Qt.AlignCenter)
+        top_icon.setStyleSheet("font-size: 12px;")
+
+        self.lateral_slider = QSlider(Qt.Vertical)
+        self.lateral_slider.setRange(0, 100)
+        self.lateral_slider.setValue(0)
+        self.lateral_slider.setInvertedAppearance(True)
+        self.lateral_slider.setFixedWidth(26)
+        self.lateral_slider.setCursor(Qt.PointingHandCursor)
+        self.lateral_slider.setToolTip("Desliza lateralmente para navegar por el horario")
+        self.lateral_slider.setStyleSheet("""
+            QSlider::groove:vertical {
+                background: #e2e8f0;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QSlider::handle:vertical {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4f46e5, stop:1 #3730a3);
+                height: 38px;
+                margin: 0 -5px;
+                border-radius: 7px;
+                border: 1.5px solid #ffffff;
+            }
+            QSlider::handle:vertical:hover {
+                background: #4338ca;
+            }
+        """)
+        self.lateral_slider.valueChanged.connect(self._on_lateral_slider_changed)
+        self.schedule_table.verticalScrollBar().rangeChanged.connect(self._sync_lateral_slider_range)
+        self.schedule_table.verticalScrollBar().valueChanged.connect(self._sync_lateral_slider_value)
+
+        bot_icon = QLabel("🌙")
+        bot_icon.setAlignment(Qt.AlignCenter)
+        bot_icon.setStyleSheet("font-size: 12px;")
+
+        lateral_box.addWidget(top_icon)
+        lateral_box.addWidget(self.lateral_slider, 1)
+        lateral_box.addWidget(bot_icon)
+
+        table_container.addLayout(lateral_box)
+        p_card_layout.addLayout(table_container)
+        layout.addWidget(preview_card)
+
+        self.selected_solution = None
         self.evaluate_current()
 
     def evaluate_current(self):
@@ -276,11 +401,11 @@ class SolutionComparisonView(QWidget):
             btn_row = QHBoxLayout()
             btn_row.setSpacing(6)
 
-            # Preview modal button
+            # Preview button that selects and loads in live grid + modal
             btn_view = QPushButton("🔍 Ver Horario")
             btn_view.setCursor(Qt.PointingHandCursor)
             btn_view.setStyleSheet("background-color: #0284c7; color: white; padding: 6px 10px; border-radius: 6px; font-weight: bold; font-size: 11px;")
-            btn_view.clicked.connect(lambda _, s=sol: self.preview_solution_modal(s))
+            btn_view.clicked.connect(lambda _, s=sol: self.select_solution(s))
             btn_row.addWidget(btn_view)
 
             if sol.get("assignments"):
@@ -305,6 +430,101 @@ class SolutionComparisonView(QWidget):
                     item.setForeground(Qt.black)
                     item.setBackground(Qt.yellow if is_best else Qt.white)
                 self.comp_table.setItem(row_idx, col_idx, item)
+
+        if self.solutions:
+            self.select_solution(self.solutions[0])
+
+    def on_preview_slider_changed(self, value):
+        self.schedule_table.verticalHeader().setDefaultSectionSize(value)
+        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
+        font = self.schedule_table.font()
+        font.setPointSize(font_size)
+        self.schedule_table.setFont(font)
+        self.schedule_table.resizeRowsToContents()
+
+    def _on_lateral_slider_changed(self, value):
+        self.schedule_table.verticalScrollBar().setValue(value)
+
+    def _sync_lateral_slider_range(self, min_val, max_val):
+        self.lateral_slider.setRange(min_val, max_val)
+
+    def _sync_lateral_slider_value(self, value):
+        self.lateral_slider.blockSignals(True)
+        self.lateral_slider.setValue(value)
+        self.lateral_slider.blockSignals(False)
+
+    def select_solution(self, sol):
+        self.selected_solution = sol
+        self.preview_title_lbl.setText(f"📅 Matriz Semanal: {sol['name']} (Calidad: {sol['data'].get('global_score', '-') }%)")
+        
+        db = SessionLocal()
+        try:
+            slots = db.query(TimeSlot).all()
+        finally:
+            db.close()
+
+        if not slots:
+            return
+
+        sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+        slot_map = {
+            s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
+            for s in sorted_slots
+        }
+        sorted_slot_ids = [s.id for s in sorted_slots]
+
+        self.schedule_table.setRowCount(len(sorted_slot_ids))
+        self.schedule_table.setVerticalHeaderLabels([slot_map[sid] for sid in sorted_slot_ids])
+
+        for r in range(self.schedule_table.rowCount()):
+            for c in range(self.schedule_table.columnCount()):
+                self.schedule_table.setItem(r, c, QTableWidgetItem(""))
+
+        day_indices = {d: i for i, d in enumerate(self.days)}
+        slot_indices = {sid: i for i, sid in enumerate(sorted_slot_ids)}
+
+        from app.database.models import ShiftType
+        shift_colors = {
+            ShiftType.MORNING: "#f0f9ff",
+            ShiftType.AFTERNOON: "#f0fdf4",
+            ShiftType.NIGHT: "#faf5ff"
+        }
+
+        assignments = sol.get("assignments", [])
+        for asg in assignments:
+            time_slot_id = asg.get("time_slot_id")
+            day_val = asg.get("day")
+            if hasattr(day_val, "value"):
+                day_val = day_val.value
+
+            if time_slot_id in slot_indices and day_val in day_indices:
+                r_idx = slot_indices[time_slot_id]
+                c_idx = day_indices[day_val]
+
+                slot_obj = next((sl for sl in sorted_slots if sl.id == time_slot_id), None)
+                bg_color = shift_colors.get(slot_obj.shift, "#ffffff") if slot_obj else "#ffffff"
+
+                text = f"📘 {asg.get('subject_name', '')} ({asg.get('group_name', '')})\n👨‍🏫 {asg.get('teacher_name', '')}\n📍 {asg.get('room_name', '')}"
+                
+                curr = self.schedule_table.item(r_idx, c_idx)
+                if curr and curr.text():
+                    curr.setText(curr.text() + f"\n\n─────────────\n\n{text}")
+                else:
+                    new_item = QTableWidgetItem(text)
+                    new_item.setTextAlignment(Qt.AlignCenter)
+                    new_item.setBackground(QColor(bg_color))
+                    new_item.setForeground(QColor("#1e3a8a"))
+                    font = new_item.font()
+                    font.setBold(True)
+                    new_item.setFont(font)
+                    self.schedule_table.setItem(r_idx, c_idx, new_item)
+
+        self.schedule_table.resizeRowsToContents()
+
+    def open_current_selected_modal(self):
+        if not self.selected_solution:
+            return
+        self.preview_solution_modal(self.selected_solution)
 
     def preview_solution_modal(self, sol):
         dialog = SchedulePreviewDialog(

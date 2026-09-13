@@ -17,8 +17,10 @@ class LoginView(QWidget):
 
     def init_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setAlignment(Qt.AlignCenter)
         main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(10)
+        
+        main_layout.addStretch(1)
 
         # Centered Formal Login Card
         card = QFrame()
@@ -189,7 +191,15 @@ class LoginView(QWidget):
         sec_notice.setStyleSheet("font-size: 11px; color: #94a3b8; font-weight: 600; margin-top: 4px;")
         card_layout.addWidget(sec_notice)
 
-        main_layout.addWidget(card)
+        # Center card horizontally and vertically
+        center_h_box = QHBoxLayout()
+        center_h_box.setContentsMargins(0, 0, 0, 0)
+        center_h_box.addStretch(1)
+        center_h_box.addWidget(card)
+        center_h_box.addStretch(1)
+        main_layout.addLayout(center_h_box)
+
+        main_layout.addStretch(1)
 
         # Subtle Evaluation Helper Link (in discrete bottom corner)
         footer_row = QHBoxLayout()

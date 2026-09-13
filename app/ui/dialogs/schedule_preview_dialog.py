@@ -99,20 +99,20 @@ class SchedulePreviewDialog(QDialog):
 
         c_layout.addStretch()
 
-        # Zoom Slider
-        zoom_label = QLabel("🔍 <b>Escala de Celdas:</b>")
+        # Height / Density Slider
+        zoom_label = QLabel("🎚️ <b>Ajuste de Visualización / Altura:</b>")
         zoom_label.setStyleSheet("color: #334155; font-size: 12px;")
         c_layout.addWidget(zoom_label)
 
         self.zoom_slider = QSlider(Qt.Horizontal)
-        self.zoom_slider.setRange(80, 200)
-        self.zoom_slider.setValue(100)
+        self.zoom_slider.setRange(45, 130)
+        self.zoom_slider.setValue(55)
         self.zoom_slider.setFixedWidth(140)
         self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
         c_layout.addWidget(self.zoom_slider)
 
-        self.zoom_val_lbl = QLabel("100%")
-        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 35px;")
+        self.zoom_val_lbl = QLabel("55 px")
+        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 40px;")
         c_layout.addWidget(self.zoom_val_lbl)
 
         layout.addWidget(controls_bar)
@@ -215,15 +215,11 @@ class SchedulePreviewDialog(QDialog):
         return lbl
 
     def on_zoom_changed(self, value):
-        self.zoom_val_lbl.setText(f"{value}%")
-        scale = value / 100.0
-        new_height = int(self.base_row_height * scale)
-        self.table.verticalHeader().setDefaultSectionSize(new_height)
-        
-        # Adjust cell font size
-        new_font_size = max(9, min(16, int(11 * scale)))
+        self.zoom_val_lbl.setText(f"{value} px")
+        self.table.verticalHeader().setDefaultSectionSize(value)
+        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
         font = self.table.font()
-        font.setPointSize(new_font_size)
+        font.setPointSize(font_size)
         self.table.setFont(font)
         self.table.resizeRowsToContents()
 

@@ -271,12 +271,23 @@ class StudentScheduleView(QWidget):
         self.options_cards_layout.setSpacing(12)
         comp_layout.addLayout(self.options_cards_layout)
 
-        # Live Preview Header with Modal Button
+        # Live Preview Header with Modal Button & Height Slider
         preview_bar = QHBoxLayout()
         self.preview_title_lbl = QLabel("Previsualización de la Alternativa Seleccionada:")
         self.preview_title_lbl.setStyleSheet("font-size: 13px; font-weight: 700; color: #1e293b;")
         preview_bar.addWidget(self.preview_title_lbl)
         preview_bar.addStretch()
+
+        p_slider_lbl = QLabel("🎚️ <b>Altura:</b>")
+        p_slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
+        preview_bar.addWidget(p_slider_lbl)
+
+        self.preview_slider = QSlider(Qt.Horizontal)
+        self.preview_slider.setRange(45, 130)
+        self.preview_slider.setValue(55)
+        self.preview_slider.setFixedWidth(110)
+        self.preview_slider.valueChanged.connect(self.on_preview_slider_changed)
+        preview_bar.addWidget(self.preview_slider)
 
         self.open_modal_btn = QPushButton("🔍 Ver en Pantalla Completa / Modal")
         self.open_modal_btn.setCursor(Qt.PointingHandCursor)
@@ -307,7 +318,7 @@ class StudentScheduleView(QWidget):
         self.preview_table.setHorizontalHeaderLabels(self.days)
         self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.preview_table.verticalHeader().setMinimumWidth(180)
-        self.preview_table.verticalHeader().setDefaultSectionSize(48)
+        self.preview_table.verticalHeader().setDefaultSectionSize(55)
         self.preview_table.setMinimumHeight(240)
         self.preview_table.setStyleSheet("""
             QTableWidget {
@@ -366,6 +377,18 @@ class StudentScheduleView(QWidget):
         t_title = QLabel("Mi Horario Oficial Registrado")
         t_title.setStyleSheet("font-size: 18px; font-weight: 800; color: #1e3a8a;")
         t_header.addWidget(t_title)
+        t_header.addStretch()
+
+        o_slider_lbl = QLabel("🎚️ <b>Altura:</b>")
+        o_slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
+        t_header.addWidget(o_slider_lbl)
+
+        self.official_slider = QSlider(Qt.Horizontal)
+        self.official_slider.setRange(45, 130)
+        self.official_slider.setValue(55)
+        self.official_slider.setFixedWidth(110)
+        self.official_slider.valueChanged.connect(self.on_official_slider_changed)
+        t_header.addWidget(self.official_slider)
 
         export_btn = QPushButton("📥 Exportar Mi Horario (CSV)")
         export_btn.setCursor(Qt.PointingHandCursor)
@@ -379,7 +402,7 @@ class StudentScheduleView(QWidget):
         self.official_table.setHorizontalHeaderLabels(self.days)
         self.official_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.official_table.verticalHeader().setMinimumWidth(180)
-        self.official_table.verticalHeader().setDefaultSectionSize(48)
+        self.official_table.verticalHeader().setDefaultSectionSize(55)
         self.official_table.setStyleSheet("""
             QTableWidget {
                 background-color: #ffffff;
@@ -616,20 +639,46 @@ class StudentScheduleView(QWidget):
             btn_row = QHBoxLayout()
             btn_row.setSpacing(6)
 
-            btn_preview = QPushButton("👁️ Grilla")
-            btn_preview.setCursor(Qt.PointingHandCursor)
-            btn_preview.setStyleSheet("background-color: #4f46e5; color: white; padding: 6px 10px; border-radius: 6px; font-weight: bold; font-size: 11px;")
-            btn_preview.clicked.connect(lambda _, i=idx: self.preview_option(i))
-            btn_row.addWidget(btn_preview)
-
-            btn_modal = QPushButton("🔍 Modal")
-            btn_modal.setCursor(Qt.PointingHandCursor)
-            btn_modal.setStyleSheet("background-color: #0284c7; color: white; padding: 6px 10px; border-radius: 6px; font-weight: bold; font-size: 11px;")
-            btn_modal.clicked.connect(lambda _, i=idx: self.open_modal_for_option(i))
-            btn_row.addWidget(btn_modal)
+            btn_view = QPushButton("🔍 Visualizar Horario Completo")
+            btn_view.setCursor(Qt.PointingHandCursor)
+            btn_view.setStyleSheet("""
+                QPushButton {
+                    background-color: #0284c7;
+                    color: white;
+                    padding: 7px 12px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 11px;
+                }
+                QPushButton:hover {
+                    background-color: #0369a1;
+                }
+            """)
+            btn_view.clicked.connect(lambda _, i=idx: self.select_and_open_option(i))
+            btn_row.addWidget(btn_view)
 
             c_layout.addLayout(btn_row)
             self.options_cards_layout.addWidget(card)
+
+    def select_and_open_option(self, option_index):
+        self.preview_option(option_index)
+        self.open_modal_for_option(option_index)
+
+    def on_preview_slider_changed(self, value):
+        self.preview_table.verticalHeader().setDefaultSectionSize(value)
+        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
+        font = self.preview_table.font()
+        font.setPointSize(font_size)
+        self.preview_table.setFont(font)
+        self.preview_table.resizeRowsToContents()
+
+    def on_official_slider_changed(self, value):
+        self.official_table.verticalHeader().setDefaultSectionSize(value)
+        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
+        font = self.official_table.font()
+        font.setPointSize(font_size)
+        self.official_table.setFont(font)
+        self.official_table.resizeRowsToContents()
 
     def preview_option(self, option_index):
         if option_index >= len(self.optimizer_options):
@@ -802,12 +851,30 @@ class StudentScheduleView(QWidget):
         db = SessionLocal()
         try:
             student_id = session.student_id or 1
+            student = db.query(Student).filter_by(id=student_id).first()
+            student_name = student.name if student else "Estudiante"
             enrollments = db.query(StudentEnrollment).filter_by(student_id=student_id).all()
             enrolled_group_ids = {e.group_id for e in enrollments}
             assignments = db.query(ScheduleAssignment).filter(ScheduleAssignment.group_id.in_(enrolled_group_ids)).all()
 
             with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f, delimiter=";")
+                
+                # 1. Weekly 2D Timetable Matrix
+                writer.writerow([f"=== HORARIO OFICIAL ESTUDIANTE - {student_name.upper()} ==="])
+                writer.writerow(["Franja Horaria / Jornada", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"])
+                for r in range(self.official_table.rowCount()):
+                    header_item = self.official_table.verticalHeaderItem(r)
+                    row_header = header_item.text().replace("\n", " ") if header_item else f"Franja {r+1}"
+                    row_data = [row_header]
+                    for c in range(self.official_table.columnCount()):
+                        item = self.official_table.item(r, c)
+                        text = item.text().replace("\n", " | ") if item and item.text() else "---"
+                        row_data.append(text)
+                    writer.writerow(row_data)
+                
+                writer.writerow([])
+                writer.writerow(["=== DETALLE DE ASIGNATURAS INSCRITAS ==="])
                 writer.writerow(["Día", "Jornada", "Hora Inicio", "Hora Fin", "Asignatura", "Grupo", "Docente", "Aula"])
                 for asg in assignments:
                     slot = asg.time_slot
@@ -816,10 +883,10 @@ class StudentScheduleView(QWidget):
                         slot.shift.value if slot else "",
                         slot.start_time.strftime('%H:%M') if slot else "",
                         slot.end_time.strftime('%H:%M') if slot else "",
-                        asg.group.subject.name,
-                        asg.group.name,
-                        asg.teacher.name,
-                        asg.room.name
+                        asg.group.subject.name if asg.group and asg.group.subject else "",
+                        asg.group.name if asg.group else "",
+                        asg.teacher.name if asg.teacher else "",
+                        asg.room.name if asg.room else ""
                     ])
             QMessageBox.information(self, "Exportación Exitosa", f"Tu horario ha sido exportado exitosamente a:\n{file_path}")
         except Exception as e:

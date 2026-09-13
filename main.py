@@ -13,6 +13,7 @@ def main():
     except Exception as e:
         print("Error generating data:", e)
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
     app.setStyleSheet(GLOBAL_STYLE)
     window = MainWindow()
     window.show()

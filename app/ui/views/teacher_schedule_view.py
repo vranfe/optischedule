@@ -88,18 +88,62 @@ class TeacherScheduleView(QWidget):
         info_layout.addWidget(self.docente_info_lbl)
         layout.addWidget(self.info_card)
 
+        # Controls bar with Slider
+        controls_card = QFrame()
+        controls_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 14px;")
+        c_layout = QHBoxLayout(controls_card)
+        c_layout.setSpacing(12)
+
+        dot_morning = QLabel(" ☀️ Mañana ")
+        dot_morning.setStyleSheet("background-color: #e0f2fe; color: #0284c7; font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; border: 1px solid #0284c740;")
+        dot_afternoon = QLabel(" ⛅ Tarde ")
+        dot_afternoon.setStyleSheet("background-color: #d1fae5; color: #059669; font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; border: 1px solid #05966940;")
+        dot_night = QLabel(" 🌙 Noche ")
+        dot_night.setStyleSheet("background-color: #ede9fe; color: #7c3aed; font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; border: 1px solid #7c3aed40;")
+        
+        c_layout.addWidget(dot_morning)
+        c_layout.addWidget(dot_afternoon)
+        c_layout.addWidget(dot_night)
+        c_layout.addStretch()
+
+        slider_lbl = QLabel("🎚️ <b>Ajuste de Visualización / Altura:</b>")
+        slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
+        c_layout.addWidget(slider_lbl)
+
+        from PySide6.QtWidgets import QSlider
+        self.zoom_slider = QSlider(Qt.Horizontal)
+        self.zoom_slider.setRange(45, 130)
+        self.zoom_slider.setValue(55)
+        self.zoom_slider.setFixedWidth(140)
+        self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
+        c_layout.addWidget(self.zoom_slider)
+
+        self.zoom_val_lbl = QLabel("55 px")
+        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 40px;")
+        c_layout.addWidget(self.zoom_val_lbl)
+
+        layout.addWidget(controls_card)
+
+        # Table + Lateral Slider Container
+        table_container = QHBoxLayout()
+        table_container.setSpacing(8)
+
         # Timetable
         self.table = QTableWidget()
         self.days = [d.value for d in DayOfWeek]
         self.table.setColumnCount(len(self.days))
         self.table.setHorizontalHeaderLabels(self.days)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.verticalHeader().setMinimumWidth(180)
+        self.table.verticalHeader().setDefaultSectionSize(55)
         self.table.setStyleSheet("""
             QTableWidget {
                 gridline-color: #cbd5e1;
                 background-color: #ffffff;
                 color: #0f172a;
                 font-size: 12px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 10px;
             }
             QHeaderView::section {
                 background-color: #1e293b;
@@ -108,7 +152,55 @@ class TeacherScheduleView(QWidget):
                 font-weight: bold;
             }
         """)
-        layout.addWidget(self.table)
+        table_container.addWidget(self.table, 1)
+
+        # Lateral Navigation Slider Box
+        lateral_box = QVBoxLayout()
+        lateral_box.setSpacing(4)
+        lateral_box.setAlignment(Qt.AlignCenter)
+
+        top_icon = QLabel("☀️")
+        top_icon.setAlignment(Qt.AlignCenter)
+        top_icon.setStyleSheet("font-size: 12px;")
+
+        self.lateral_slider = QSlider(Qt.Vertical)
+        self.lateral_slider.setRange(0, 100)
+        self.lateral_slider.setValue(0)
+        self.lateral_slider.setInvertedAppearance(True)
+        self.lateral_slider.setFixedWidth(26)
+        self.lateral_slider.setCursor(Qt.PointingHandCursor)
+        self.lateral_slider.setToolTip("Desliza lateralmente para navegar por las franjas horarias")
+        self.lateral_slider.setStyleSheet("""
+            QSlider::groove:vertical {
+                background: #e2e8f0;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QSlider::handle:vertical {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4f46e5, stop:1 #3730a3);
+                height: 38px;
+                margin: 0 -5px;
+                border-radius: 7px;
+                border: 1.5px solid #ffffff;
+            }
+            QSlider::handle:vertical:hover {
+                background: #4338ca;
+            }
+        """)
+        self.lateral_slider.valueChanged.connect(self._on_lateral_slider_changed)
+        self.table.verticalScrollBar().rangeChanged.connect(self._sync_lateral_slider_range)
+        self.table.verticalScrollBar().valueChanged.connect(self._sync_lateral_slider_value)
+
+        bot_icon = QLabel("🌙")
+        bot_icon.setAlignment(Qt.AlignCenter)
+        bot_icon.setStyleSheet("font-size: 12px;")
+
+        lateral_box.addWidget(top_icon)
+        lateral_box.addWidget(self.lateral_slider, 1)
+        lateral_box.addWidget(bot_icon)
+
+        table_container.addLayout(lateral_box)
+        layout.addLayout(table_container)
 
         # Breakdown table: Desglose de grupos y aulas
         breakdown_card = QFrame()
@@ -234,6 +326,26 @@ class TeacherScheduleView(QWidget):
             self.breakdown_table.setItem(row_idx, 3, QTableWidgetItem(f"{g_info['slots_count'] * 2} hrs"))
             self.breakdown_table.setItem(row_idx, 4, QTableWidgetItem(", ".join(g_info["times"])))
 
+    def on_zoom_changed(self, value):
+        self.zoom_val_lbl.setText(f"{value} px")
+        self.table.verticalHeader().setDefaultSectionSize(value)
+        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
+        font = self.table.font()
+        font.setPointSize(font_size)
+        self.table.setFont(font)
+        self.table.resizeRowsToContents()
+
+    def _on_lateral_slider_changed(self, value):
+        self.table.verticalScrollBar().setValue(value)
+
+    def _sync_lateral_slider_range(self, min_val, max_val):
+        self.lateral_slider.setRange(min_val, max_val)
+
+    def _sync_lateral_slider_value(self, value):
+        self.lateral_slider.blockSignals(True)
+        self.lateral_slider.setValue(value)
+        self.lateral_slider.blockSignals(False)
+
     def export_csv(self):
         db = SessionLocal()
         try:
@@ -267,6 +379,22 @@ class TeacherScheduleView(QWidget):
         try:
             with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f, delimiter=";")
+                
+                # 1. Weekly 2D Timetable Matrix
+                writer.writerow([f"=== HORARIO SEMANAL DOCENTE - {teacher_name.upper()} ==="])
+                writer.writerow(["Franja Horaria / Jornada", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"])
+                for r in range(self.table.rowCount()):
+                    header_item = self.table.verticalHeaderItem(r)
+                    row_header = header_item.text().replace("\n", " ") if header_item else f"Franja {r+1}"
+                    row_data = [row_header]
+                    for c in range(self.table.columnCount()):
+                        item = self.table.item(r, c)
+                        text = item.text().replace("\n", " | ") if item and item.text() else "---"
+                        row_data.append(text)
+                    writer.writerow(row_data)
+                
+                writer.writerow([])
+                writer.writerow(["=== DESGLOSE DETALLADO DE CLASES ==="])
                 writer.writerow(["Día", "Jornada", "Hora Inicio", "Hora Fin", "Asignatura", "Semestre", "Grupo", "Aula", "Tipo Aula"])
                 for asg in assignments:
                     slot = asg.time_slot

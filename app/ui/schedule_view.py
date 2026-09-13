@@ -106,30 +106,30 @@ class ScheduleView(QWidget):
         header.addLayout(btn_layout)
         self.layout.addWidget(header_card)
         
-        # Legend & Zoom Bar
+        # Legend & Cell Height Slider Bar
         legend_card = QFrame()
-        legend_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px;")
+        legend_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 14px;")
         l_layout = QHBoxLayout(legend_card)
-        l_layout.setSpacing(10)
+        l_layout.setSpacing(12)
 
         l_layout.addWidget(self._create_legend_dot("☀️ Mañana (8-12)", "#0284c7", "#e0f2fe"))
         l_layout.addWidget(self._create_legend_dot("⛅ Tarde (13-17)", "#059669", "#d1fae5"))
         l_layout.addWidget(self._create_legend_dot("🌙 Noche (18-22)", "#7c3aed", "#ede9fe"))
         l_layout.addStretch()
 
-        zoom_lbl = QLabel("🔍 <b>Escala:</b>")
-        zoom_lbl.setStyleSheet("color: #334155; font-size: 12px;")
-        l_layout.addWidget(zoom_lbl)
+        slider_lbl = QLabel("🎚️ <b>Ajuste de Visualización / Altura de Celdas:</b>")
+        slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
+        l_layout.addWidget(slider_lbl)
 
         self.zoom_slider = QSlider(Qt.Horizontal)
-        self.zoom_slider.setRange(80, 180)
-        self.zoom_slider.setValue(100)
-        self.zoom_slider.setFixedWidth(120)
+        self.zoom_slider.setRange(45, 130)
+        self.zoom_slider.setValue(55)
+        self.zoom_slider.setFixedWidth(140)
         self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
         l_layout.addWidget(self.zoom_slider)
 
-        self.zoom_val_lbl = QLabel("100%")
-        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 35px;")
+        self.zoom_val_lbl = QLabel("55 px")
+        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 40px;")
         l_layout.addWidget(self.zoom_val_lbl)
 
         self.layout.addWidget(legend_card)
@@ -146,6 +146,10 @@ class ScheduleView(QWidget):
         self.progress_container.addWidget(self.status_lbl)
         self.progress_container.addWidget(self.pbar)
         self.layout.addLayout(self.progress_container)
+
+        # Schedule table + Lateral Navigation Slider container
+        table_container = QHBoxLayout()
+        table_container.setSpacing(8)
 
         # Table to show full institutional schedule
         self.table = QTableWidget()
@@ -174,9 +178,68 @@ class ScheduleView(QWidget):
                 border-right: 1px solid #334155;
             }
         """)
-        self.layout.addWidget(self.table)
+        table_container.addWidget(self.table, 1)
+
+        # Lateral Navigation Slider Box
+        lateral_box = QVBoxLayout()
+        lateral_box.setSpacing(4)
+        lateral_box.setAlignment(Qt.AlignCenter)
+
+        top_icon = QLabel("☀️")
+        top_icon.setAlignment(Qt.AlignCenter)
+        top_icon.setStyleSheet("font-size: 13px;")
+
+        self.lateral_slider = QSlider(Qt.Vertical)
+        self.lateral_slider.setRange(0, 100)
+        self.lateral_slider.setValue(0)
+        self.lateral_slider.setInvertedAppearance(True)
+        self.lateral_slider.setFixedWidth(26)
+        self.lateral_slider.setCursor(Qt.PointingHandCursor)
+        self.lateral_slider.setToolTip("Desliza lateralmente para navegar por las franjas horarias")
+        self.lateral_slider.setStyleSheet("""
+            QSlider::groove:vertical {
+                background: #e2e8f0;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QSlider::handle:vertical {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4f46e5, stop:1 #3730a3);
+                height: 38px;
+                margin: 0 -5px;
+                border-radius: 7px;
+                border: 1.5px solid #ffffff;
+            }
+            QSlider::handle:vertical:hover {
+                background: #4338ca;
+            }
+        """)
+        self.lateral_slider.valueChanged.connect(self._on_lateral_slider_changed)
+        self.table.verticalScrollBar().rangeChanged.connect(self._sync_lateral_slider_range)
+        self.table.verticalScrollBar().valueChanged.connect(self._sync_lateral_slider_value)
+
+        bot_icon = QLabel("🌙")
+        bot_icon.setAlignment(Qt.AlignCenter)
+        bot_icon.setStyleSheet("font-size: 13px;")
+
+        lateral_box.addWidget(top_icon)
+        lateral_box.addWidget(self.lateral_slider, 1)
+        lateral_box.addWidget(bot_icon)
+
+        table_container.addLayout(lateral_box)
+        self.layout.addLayout(table_container)
         
         self.load_schedule()
+
+    def _on_lateral_slider_changed(self, value):
+        self.table.verticalScrollBar().setValue(value)
+
+    def _sync_lateral_slider_range(self, min_val, max_val):
+        self.lateral_slider.setRange(min_val, max_val)
+
+    def _sync_lateral_slider_value(self, value):
+        self.lateral_slider.blockSignals(True)
+        self.lateral_slider.setValue(value)
+        self.lateral_slider.blockSignals(False)
 
     def _create_legend_dot(self, text, color, bg):
         lbl = QLabel(f" {text} ")
@@ -184,13 +247,11 @@ class ScheduleView(QWidget):
         return lbl
 
     def on_zoom_changed(self, value):
-        self.zoom_val_lbl.setText(f"{value}%")
-        scale = value / 100.0
-        new_height = int(self.base_row_height * scale)
-        self.table.verticalHeader().setDefaultSectionSize(new_height)
-        new_font_size = max(9, min(15, int(11 * scale)))
+        self.zoom_val_lbl.setText(f"{value} px")
+        self.table.verticalHeader().setDefaultSectionSize(value)
+        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
         font = self.table.font()
-        font.setPointSize(new_font_size)
+        font.setPointSize(font_size)
         self.table.setFont(font)
         self.table.resizeRowsToContents()
 
@@ -354,6 +415,22 @@ class ScheduleView(QWidget):
         try:
             with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f, delimiter=";")
+                
+                # 1. Weekly 2D Timetable Matrix (Hora vs Días)
+                writer.writerow(["=== MATRIZ INSTITUCIONAL DE HORARIOS UMB ==="])
+                writer.writerow(["Franja Horaria / Jornada", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"])
+                for r in range(self.table.rowCount()):
+                    header_item = self.table.verticalHeaderItem(r)
+                    row_header = header_item.text().replace("\n", " ") if header_item else f"Franja {r+1}"
+                    row_data = [row_header]
+                    for c in range(self.table.columnCount()):
+                        item = self.table.item(r, c)
+                        text = item.text().replace("\n", " | ") if item and item.text() else "---"
+                        row_data.append(text)
+                    writer.writerow(row_data)
+                
+                writer.writerow([])
+                writer.writerow(["=== DETALLE INDIVIDUAL DE ASIGNACIONES ==="])
                 writer.writerow(["ID", "Día", "Jornada", "Hora Inicio", "Hora Fin", "Asignatura", "Semestre", "Grupo", "Docente", "Tipo Contrato", "Aula", "Tipo Aula"])
                 
                 for asg in assignments:

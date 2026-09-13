@@ -131,51 +131,58 @@ QPushButton:disabled {
     color: #94a3b8;
 }
 
-/* QMessageBox & QDialog Buttons - CRITICAL FIX FOR WHITE ON WHITE */
+/* QMessageBox & QDialog Buttons - High Contrast & Action Visibility */
 QMessageBox {
     background-color: #ffffff;
+    border: 1px solid #cbd5e1;
 }
 
 QMessageBox QLabel {
     color: #0f172a;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
 }
 
-QMessageBox QPushButton {
+QMessageBox QPushButton, QDialogButtonBox QPushButton, QDialog QPushButton {
     background-color: #4f46e5;
     color: #ffffff;
     font-size: 13px;
     font-weight: 700;
-    border-radius: 6px;
-    padding: 7px 18px;
-    min-width: 75px;
-    min-height: 22px;
-    border: none;
+    border-radius: 7px;
+    padding: 8px 22px;
+    min-width: 90px;
+    min-height: 26px;
+    border: 1.5px solid #3730a3;
 }
 
-QMessageBox QPushButton:hover {
+QMessageBox QPushButton:hover, QDialogButtonBox QPushButton:hover, QDialog QPushButton:hover {
     background-color: #4338ca;
+    border-color: #312e81;
 }
 
-QMessageBox QPushButton:pressed {
+QMessageBox QPushButton:pressed, QDialogButtonBox QPushButton:pressed, QDialog QPushButton:pressed {
     background-color: #3730a3;
 }
 
-QDialogButtonBox QPushButton {
-    background-color: #4f46e5;
-    color: #ffffff;
-    font-size: 13px;
-    font-weight: 700;
-    border-radius: 6px;
-    padding: 7px 18px;
-    min-width: 75px;
-    min-height: 22px;
-    border: none;
+/* Secondary / Dismiss buttons in message boxes */
+QMessageBox QPushButton[text="No"], QMessageBox QPushButton[text="&No"],
+QMessageBox QPushButton[text="Cancelar"], QMessageBox QPushButton[text="&Cancelar"],
+QMessageBox QPushButton[text="Cancel"], QMessageBox QPushButton[text="&Cancel"],
+QDialogButtonBox QPushButton[text="No"], QDialogButtonBox QPushButton[text="Cancelar"], 
+QDialogButtonBox QPushButton[text="Cancel"], QDialogButtonBox QPushButton[text="&Cancel"] {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    border: 1.5px solid #94a3b8;
 }
 
-QDialogButtonBox QPushButton:hover {
-    background-color: #4338ca;
+QMessageBox QPushButton[text="No"]:hover, QMessageBox QPushButton[text="&No"]:hover,
+QMessageBox QPushButton[text="Cancelar"]:hover, QMessageBox QPushButton[text="&Cancelar"]:hover,
+QMessageBox QPushButton[text="Cancel"]:hover, QMessageBox QPushButton[text="&Cancel"]:hover,
+QDialogButtonBox QPushButton[text="No"]:hover, QDialogButtonBox QPushButton[text="Cancelar"]:hover, 
+QDialogButtonBox QPushButton[text="Cancel"]:hover, QDialogButtonBox QPushButton[text="&Cancel"]:hover {
+    background-color: #e2e8f0;
+    color: #0f172a;
+    border-color: #64748b;
 }
 
 /* Button Variants */
