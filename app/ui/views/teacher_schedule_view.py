@@ -105,23 +105,6 @@ class TeacherScheduleView(QWidget):
         c_layout.addWidget(dot_afternoon)
         c_layout.addWidget(dot_night)
         c_layout.addStretch()
-
-        slider_lbl = QLabel("🎚️ <b>Ajuste de Visualización / Altura:</b>")
-        slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
-        c_layout.addWidget(slider_lbl)
-
-        from PySide6.QtWidgets import QSlider
-        self.zoom_slider = QSlider(Qt.Horizontal)
-        self.zoom_slider.setRange(45, 130)
-        self.zoom_slider.setValue(55)
-        self.zoom_slider.setFixedWidth(140)
-        self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
-        c_layout.addWidget(self.zoom_slider)
-
-        self.zoom_val_lbl = QLabel("55 px")
-        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 40px;")
-        c_layout.addWidget(self.zoom_val_lbl)
-
         layout.addWidget(controls_card)
 
         # Table + Lateral Slider Container
@@ -326,14 +309,6 @@ class TeacherScheduleView(QWidget):
             self.breakdown_table.setItem(row_idx, 3, QTableWidgetItem(f"{g_info['slots_count'] * 2} hrs"))
             self.breakdown_table.setItem(row_idx, 4, QTableWidgetItem(", ".join(g_info["times"])))
 
-    def on_zoom_changed(self, value):
-        self.zoom_val_lbl.setText(f"{value} px")
-        self.table.verticalHeader().setDefaultSectionSize(value)
-        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
-        font = self.table.font()
-        font.setPointSize(font_size)
-        self.table.setFont(font)
-        self.table.resizeRowsToContents()
 
     def _on_lateral_slider_changed(self, value):
         self.table.verticalScrollBar().setValue(value)

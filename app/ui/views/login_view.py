@@ -16,11 +16,9 @@ class LoginView(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(10)
-        
-        main_layout.addStretch(1)
+        self.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f8fafc, stop:0.5 #f1f5f9, stop:1 #e2e8f0);")
+        root_grid = QGridLayout(self)
+        root_grid.setContentsMargins(24, 24, 24, 24)
 
         # Centered Formal Login Card
         card = QFrame()
@@ -29,16 +27,16 @@ class LoginView(QWidget):
             QFrame#formal_login_card {
                 background-color: #ffffff;
                 border-radius: 18px;
-                border: 1.5px solid #e2e8f0;
+                border: 1.5px solid #cbd5e1;
             }
         """)
         card.setObjectName("formal_login_card")
 
         # Soft subtle shadow
         shadow = QGraphicsDropShadowEffect(card)
-        shadow.setBlurRadius(24)
-        shadow.setColor(QColor(15, 23, 42, 20))
-        shadow.setOffset(0, 8)
+        shadow.setBlurRadius(28)
+        shadow.setColor(QColor(15, 23, 42, 35))
+        shadow.setOffset(0, 10)
         card.setGraphicsEffect(shadow)
 
         card_layout = QVBoxLayout(card)
@@ -191,15 +189,9 @@ class LoginView(QWidget):
         sec_notice.setStyleSheet("font-size: 11px; color: #94a3b8; font-weight: 600; margin-top: 4px;")
         card_layout.addWidget(sec_notice)
 
-        # Center card horizontally and vertically
-        center_h_box = QHBoxLayout()
-        center_h_box.setContentsMargins(0, 0, 0, 0)
-        center_h_box.addStretch(1)
-        center_h_box.addWidget(card)
-        center_h_box.addStretch(1)
-        main_layout.addLayout(center_h_box)
-
-        main_layout.addStretch(1)
+        # Center card absolutely horizontally and vertically
+        root_grid.addWidget(card, 0, 0, Qt.AlignCenter)
+        root_grid.setRowStretch(0, 1)
 
         # Subtle Evaluation Helper Link (in discrete bottom corner)
         footer_row = QHBoxLayout()
@@ -222,7 +214,8 @@ class LoginView(QWidget):
         """)
         helper_btn.clicked.connect(self.open_credentials_dialog)
         footer_row.addWidget(helper_btn)
-        main_layout.addLayout(footer_row)
+        root_grid.addLayout(footer_row, 1, 0, Qt.AlignBottom | Qt.AlignRight)
+        root_grid.setRowStretch(1, 0)
 
     def toggle_password_visibility(self):
         if self.password_input.echoMode() == QLineEdit.Password:

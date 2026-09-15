@@ -278,17 +278,6 @@ class StudentScheduleView(QWidget):
         preview_bar.addWidget(self.preview_title_lbl)
         preview_bar.addStretch()
 
-        p_slider_lbl = QLabel("🎚️ <b>Altura:</b>")
-        p_slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
-        preview_bar.addWidget(p_slider_lbl)
-
-        self.preview_slider = QSlider(Qt.Horizontal)
-        self.preview_slider.setRange(45, 130)
-        self.preview_slider.setValue(55)
-        self.preview_slider.setFixedWidth(110)
-        self.preview_slider.valueChanged.connect(self.on_preview_slider_changed)
-        preview_bar.addWidget(self.preview_slider)
-
         self.open_modal_btn = QPushButton("🔍 Ver en Pantalla Completa / Modal")
         self.open_modal_btn.setCursor(Qt.PointingHandCursor)
         self.open_modal_btn.setStyleSheet("""
@@ -312,8 +301,13 @@ class StudentScheduleView(QWidget):
         preview_bar.addWidget(self.open_modal_btn)
         comp_layout.addLayout(preview_bar)
 
+        # Container for Preview Table + Fluid Lateral Slider
+        preview_container = QHBoxLayout()
+        preview_container.setSpacing(8)
+
         # Live Schedule Preview Table
         self.preview_table = QTableWidget()
+        self.days = [d.value for d in DayOfWeek]
         self.preview_table.setColumnCount(len(self.days))
         self.preview_table.setHorizontalHeaderLabels(self.days)
         self.preview_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -339,7 +333,55 @@ class StudentScheduleView(QWidget):
                 border-right: 1px solid #334155;
             }
         """)
-        comp_layout.addWidget(self.preview_table)
+        preview_container.addWidget(self.preview_table, 1)
+
+        # Fluid Lateral Slider for Preview Table
+        p_lat_box = QVBoxLayout()
+        p_lat_box.setSpacing(4)
+        p_lat_box.setAlignment(Qt.AlignCenter)
+
+        p_top_icon = QLabel("☀️")
+        p_top_icon.setAlignment(Qt.AlignCenter)
+        p_mid_icon = QLabel("⛅")
+        p_mid_icon.setAlignment(Qt.AlignCenter)
+        p_bot_icon = QLabel("🌙")
+        p_bot_icon.setAlignment(Qt.AlignCenter)
+
+        self.preview_lateral_slider = QSlider(Qt.Vertical)
+        self.preview_lateral_slider.setRange(0, 100)
+        self.preview_lateral_slider.setValue(0)
+        self.preview_lateral_slider.setInvertedAppearance(True)
+        self.preview_lateral_slider.setFixedWidth(26)
+        self.preview_lateral_slider.setCursor(Qt.PointingHandCursor)
+        self.preview_lateral_slider.setToolTip("Desliza lateralmente para navegar por el horario")
+        self.preview_lateral_slider.setStyleSheet("""
+            QSlider::groove:vertical {
+                background: #e2e8f0;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QSlider::handle:vertical {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4f46e5, stop:1 #3730a3);
+                height: 38px;
+                margin: 0 -5px;
+                border-radius: 7px;
+                border: 1.5px solid #ffffff;
+            }
+            QSlider::handle:vertical:hover {
+                background: #4338ca;
+            }
+        """)
+        self.preview_lateral_slider.valueChanged.connect(self._on_preview_lateral_slider_changed)
+        self.preview_table.verticalScrollBar().rangeChanged.connect(self._sync_preview_lateral_slider_range)
+        self.preview_table.verticalScrollBar().valueChanged.connect(self._sync_preview_lateral_slider_value)
+
+        p_lat_box.addWidget(p_top_icon)
+        p_lat_box.addWidget(p_mid_icon)
+        p_lat_box.addWidget(self.preview_lateral_slider, 1)
+        p_lat_box.addWidget(p_bot_icon)
+        preview_container.addLayout(p_lat_box)
+
+        comp_layout.addLayout(preview_container)
 
         # Save Selected Schedule Button
         self.save_schedule_btn = QPushButton("✅ CONFIRMAR E INSCRIBIR ESTA ALTERNATIVA")
@@ -379,23 +421,16 @@ class StudentScheduleView(QWidget):
         t_header.addWidget(t_title)
         t_header.addStretch()
 
-        o_slider_lbl = QLabel("🎚️ <b>Altura:</b>")
-        o_slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
-        t_header.addWidget(o_slider_lbl)
-
-        self.official_slider = QSlider(Qt.Horizontal)
-        self.official_slider.setRange(45, 130)
-        self.official_slider.setValue(55)
-        self.official_slider.setFixedWidth(110)
-        self.official_slider.valueChanged.connect(self.on_official_slider_changed)
-        t_header.addWidget(self.official_slider)
-
         export_btn = QPushButton("📥 Exportar Mi Horario (CSV)")
         export_btn.setCursor(Qt.PointingHandCursor)
         export_btn.setStyleSheet("background-color: #0284c7; color: white; font-weight: bold; padding: 8px 16px; border-radius: 7px;")
         export_btn.clicked.connect(self.export_my_schedule)
         t_header.addWidget(export_btn)
         t_layout.addLayout(t_header)
+
+        # Official Table + Fluid Lateral Slider Container
+        official_container = QHBoxLayout()
+        official_container.setSpacing(8)
 
         self.official_table = QTableWidget()
         self.official_table.setColumnCount(len(self.days))
@@ -422,7 +457,77 @@ class StudentScheduleView(QWidget):
                 border-right: 1px solid #334155;
             }
         """)
-        t_layout.addWidget(self.official_table)
+        official_container.addWidget(self.official_table, 1)
+
+        # Fluid Lateral Slider for Official Timetable
+        o_lat_box = QVBoxLayout()
+        o_lat_box.setSpacing(4)
+        o_lat_box.setAlignment(Qt.AlignCenter)
+
+        o_top_icon = QLabel("☀️")
+        o_top_icon.setAlignment(Qt.AlignCenter)
+        o_mid_icon = QLabel("⛅")
+        o_mid_icon.setAlignment(Qt.AlignCenter)
+        o_bot_icon = QLabel("🌙")
+        o_bot_icon.setAlignment(Qt.AlignCenter)
+
+        self.official_lateral_slider = QSlider(Qt.Vertical)
+        self.official_lateral_slider.setRange(0, 100)
+        self.official_lateral_slider.setValue(0)
+        self.official_lateral_slider.setInvertedAppearance(True)
+        self.official_lateral_slider.setFixedWidth(26)
+        self.official_lateral_slider.setCursor(Qt.PointingHandCursor)
+        self.official_lateral_slider.setToolTip("Desliza lateralmente para navegar por tu horario oficial")
+        self.official_lateral_slider.setStyleSheet("""
+            QSlider::groove:vertical {
+                background: #e2e8f0;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QSlider::handle:vertical {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4f46e5, stop:1 #3730a3);
+                height: 38px;
+                margin: 0 -5px;
+                border-radius: 7px;
+                border: 1.5px solid #ffffff;
+            }
+            QSlider::handle:vertical:hover {
+                background: #4338ca;
+            }
+        """)
+        self.official_lateral_slider.valueChanged.connect(self._on_official_lateral_slider_changed)
+        self.official_table.verticalScrollBar().rangeChanged.connect(self._sync_official_lateral_slider_range)
+        self.official_table.verticalScrollBar().valueChanged.connect(self._sync_official_lateral_slider_value)
+
+        o_lat_box.addWidget(o_top_icon)
+        o_lat_box.addWidget(o_mid_icon)
+        o_lat_box.addWidget(self.official_lateral_slider, 1)
+        o_lat_box.addWidget(o_bot_icon)
+        official_container.addLayout(o_lat_box)
+
+        t_layout.addLayout(official_container)
+
+    def _on_preview_lateral_slider_changed(self, value):
+        self.preview_table.verticalScrollBar().setValue(value)
+
+    def _sync_preview_lateral_slider_range(self, min_val, max_val):
+        self.preview_lateral_slider.setRange(min_val, max_val)
+
+    def _sync_preview_lateral_slider_value(self, value):
+        self.preview_lateral_slider.blockSignals(True)
+        self.preview_lateral_slider.setValue(value)
+        self.preview_lateral_slider.blockSignals(False)
+
+    def _on_official_lateral_slider_changed(self, value):
+        self.official_table.verticalScrollBar().setValue(value)
+
+    def _sync_official_lateral_slider_range(self, min_val, max_val):
+        self.official_lateral_slider.setRange(min_val, max_val)
+
+    def _sync_official_lateral_slider_value(self, value):
+        self.official_lateral_slider.blockSignals(True)
+        self.official_lateral_slider.setValue(value)
+        self.official_lateral_slider.blockSignals(False)
 
     def select_all_subjects(self):
         for cb in self.subject_checkboxes.values():

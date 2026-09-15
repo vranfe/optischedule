@@ -131,57 +131,91 @@ QPushButton:disabled {
     color: #94a3b8;
 }
 
-/* QMessageBox & QDialog Buttons - High Contrast & Action Visibility */
-QMessageBox {
+/* QMessageBox & QDialog Styling - Clean Background, Borders & High Contrast Visibility */
+QDialog, QMessageBox {
     background-color: #ffffff;
-    border: 1px solid #cbd5e1;
+    border: 2px solid #cbd5e1;
+    border-radius: 12px;
 }
 
 QMessageBox QLabel {
     color: #0f172a;
     font-size: 13px;
     font-weight: 600;
+    min-height: 40px;
+    padding: 6px;
 }
 
+/* Primary Confirmation & Action Buttons in Dialogs */
 QMessageBox QPushButton, QDialogButtonBox QPushButton, QDialog QPushButton {
-    background-color: #4f46e5;
+    background-color: #10b981;
     color: #ffffff;
     font-size: 13px;
-    font-weight: 700;
-    border-radius: 7px;
-    padding: 8px 22px;
-    min-width: 90px;
-    min-height: 26px;
-    border: 1.5px solid #3730a3;
+    font-weight: 800;
+    border-radius: 8px;
+    padding: 9px 24px;
+    min-width: 95px;
+    min-height: 28px;
+    border: 1.5px solid #059669;
 }
 
 QMessageBox QPushButton:hover, QDialogButtonBox QPushButton:hover, QDialog QPushButton:hover {
-    background-color: #4338ca;
-    border-color: #312e81;
+    background-color: #059669;
+    border-color: #047857;
 }
 
 QMessageBox QPushButton:pressed, QDialogButtonBox QPushButton:pressed, QDialog QPushButton:pressed {
-    background-color: #3730a3;
+    background-color: #047857;
 }
 
-/* Secondary / Dismiss buttons in message boxes */
+/* Explicit Action: OK / Sí / Yes / Aceptar Buttons */
+QMessageBox QPushButton[text="&Sí"], QMessageBox QPushButton[text="Sí"],
+QMessageBox QPushButton[text="&Yes"], QMessageBox QPushButton[text="Yes"],
+QMessageBox QPushButton[text="&OK"], QMessageBox QPushButton[text="OK"],
+QMessageBox QPushButton[text="&Aceptar"], QMessageBox QPushButton[text="Aceptar"],
+QDialogButtonBox QPushButton[text="&OK"], QDialogButtonBox QPushButton[text="OK"],
+QDialogButtonBox QPushButton[text="&Save"], QDialogButtonBox QPushButton[text="Save"],
+QDialogButtonBox QPushButton[text="Guardar"], QDialogButtonBox QPushButton[text="&Guardar"],
+QDialogButtonBox QPushButton[text="&Aceptar"], QDialogButtonBox QPushButton[text="Aceptar"] {
+    background-color: #10b981;
+    color: #ffffff;
+    border: 2px solid #059669;
+}
+
+QMessageBox QPushButton[text="&Sí"]:hover, QMessageBox QPushButton[text="Sí"]:hover,
+QMessageBox QPushButton[text="&Yes"]:hover, QMessageBox QPushButton[text="Yes"]:hover,
+QMessageBox QPushButton[text="&OK"]:hover, QMessageBox QPushButton[text="OK"]:hover,
+QMessageBox QPushButton[text="&Aceptar"]:hover, QMessageBox QPushButton[text="Aceptar"]:hover,
+QDialogButtonBox QPushButton[text="&OK"]:hover, QDialogButtonBox QPushButton[text="OK"]:hover,
+QDialogButtonBox QPushButton[text="&Save"]:hover, QDialogButtonBox QPushButton[text="Save"]:hover {
+    background-color: #059669;
+    border-color: #047857;
+}
+
+/* Secondary / Dismiss / No / Cancelar Buttons in Dialogs */
 QMessageBox QPushButton[text="No"], QMessageBox QPushButton[text="&No"],
 QMessageBox QPushButton[text="Cancelar"], QMessageBox QPushButton[text="&Cancelar"],
 QMessageBox QPushButton[text="Cancel"], QMessageBox QPushButton[text="&Cancel"],
-QDialogButtonBox QPushButton[text="No"], QDialogButtonBox QPushButton[text="Cancelar"], 
-QDialogButtonBox QPushButton[text="Cancel"], QDialogButtonBox QPushButton[text="&Cancel"] {
-    background-color: #f1f5f9;
-    color: #1e293b;
-    border: 1.5px solid #94a3b8;
+QMessageBox QPushButton[text="Cerrar"], QMessageBox QPushButton[text="&Cerrar"],
+QDialogButtonBox QPushButton[text="No"], QDialogButtonBox QPushButton[text="&No"],
+QDialogButtonBox QPushButton[text="Cancelar"], QDialogButtonBox QPushButton[text="&Cancelar"],
+QDialogButtonBox QPushButton[text="Cancel"], QDialogButtonBox QPushButton[text="&Cancel"],
+QDialogButtonBox QPushButton[text="Close"], QDialogButtonBox QPushButton[text="&Close"] {
+    background-color: #e2e8f0;
+    color: #0f172a;
+    font-weight: 800;
+    border: 2px solid #94a3b8;
 }
 
 QMessageBox QPushButton[text="No"]:hover, QMessageBox QPushButton[text="&No"]:hover,
 QMessageBox QPushButton[text="Cancelar"]:hover, QMessageBox QPushButton[text="&Cancelar"]:hover,
 QMessageBox QPushButton[text="Cancel"]:hover, QMessageBox QPushButton[text="&Cancel"]:hover,
-QDialogButtonBox QPushButton[text="No"]:hover, QDialogButtonBox QPushButton[text="Cancelar"]:hover, 
+QMessageBox QPushButton[text="Cerrar"]:hover, QMessageBox QPushButton[text="&Cerrar"]:hover,
+QDialogButtonBox QPushButton[text="No"]:hover, QDialogButtonBox QPushButton[text="&No"]:hover,
+QDialogButtonBox QPushButton[text="Cancelar"]:hover, QDialogButtonBox QPushButton[text="&Cancelar"]:hover,
 QDialogButtonBox QPushButton[text="Cancel"]:hover, QDialogButtonBox QPushButton[text="&Cancel"]:hover {
-    background-color: #e2e8f0;
-    color: #0f172a;
+    background-color: #cbd5e1;
+    color: #000000;
     border-color: #64748b;
 }
 
@@ -247,11 +281,12 @@ QTableWidget::item:selected {
 QHeaderView::section {
     background-color: #1e293b;
     color: #ffffff;
-    padding: 10px;
-    font-weight: 700;
+    padding: 10px 12px;
+    font-weight: 800;
     font-size: 12px;
     border: none;
-    border-right: 1px solid #334155;
+    border-right: 1.5px solid #334155;
+    border-bottom: 2px solid #4f46e5;
 }
 
 /* Modern Tabs */
@@ -398,26 +433,58 @@ QProgressBar::chunk {
     border-radius: 7px;
 }
 
-/* ScrollBar */
+/* Fluid, Modern ScrollBars (Vertical and Horizontal) */
 QScrollBar:vertical {
     border: none;
-    background: #f8fafc;
-    width: 10px;
+    background: #f1f5f9;
+    width: 14px;
     margin: 0px;
-    border-radius: 5px;
+    border-radius: 7px;
 }
 
 QScrollBar::handle:vertical {
-    background: #cbd5e1;
-    min-height: 24px;
-    border-radius: 5px;
+    background: #94a3b8;
+    min-height: 32px;
+    border-radius: 7px;
+    border: 2px solid #f1f5f9;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: #94a3b8;
+    background: #64748b;
+}
+
+QScrollBar::handle:vertical:pressed {
+    background: #475569;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
+}
+
+QScrollBar:horizontal {
+    border: none;
+    background: #f1f5f9;
+    height: 14px;
+    margin: 0px;
+    border-radius: 7px;
+}
+
+QScrollBar::handle:horizontal {
+    background: #94a3b8;
+    min-width: 32px;
+    border-radius: 7px;
+    border: 2px solid #f1f5f9;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #64748b;
+}
+
+QScrollBar::handle:horizontal:pressed {
+    background: #475569;
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
 }
 """

@@ -116,22 +116,6 @@ class ScheduleView(QWidget):
         l_layout.addWidget(self._create_legend_dot("⛅ Tarde (13-17)", "#059669", "#d1fae5"))
         l_layout.addWidget(self._create_legend_dot("🌙 Noche (18-22)", "#7c3aed", "#ede9fe"))
         l_layout.addStretch()
-
-        slider_lbl = QLabel("🎚️ <b>Ajuste de Visualización / Altura de Celdas:</b>")
-        slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
-        l_layout.addWidget(slider_lbl)
-
-        self.zoom_slider = QSlider(Qt.Horizontal)
-        self.zoom_slider.setRange(45, 130)
-        self.zoom_slider.setValue(55)
-        self.zoom_slider.setFixedWidth(140)
-        self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
-        l_layout.addWidget(self.zoom_slider)
-
-        self.zoom_val_lbl = QLabel("55 px")
-        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 40px;")
-        l_layout.addWidget(self.zoom_val_lbl)
-
         self.layout.addWidget(legend_card)
 
         # Progress & Status Bar
@@ -221,7 +205,12 @@ class ScheduleView(QWidget):
         bot_icon.setAlignment(Qt.AlignCenter)
         bot_icon.setStyleSheet("font-size: 13px;")
 
+        mid_icon = QLabel("⛅")
+        mid_icon.setAlignment(Qt.AlignCenter)
+        mid_icon.setStyleSheet("font-size: 11px;")
+
         lateral_box.addWidget(top_icon)
+        lateral_box.addWidget(mid_icon)
         lateral_box.addWidget(self.lateral_slider, 1)
         lateral_box.addWidget(bot_icon)
 
@@ -245,15 +234,6 @@ class ScheduleView(QWidget):
         lbl = QLabel(f" {text} ")
         lbl.setStyleSheet(f"background-color: {bg}; color: {color}; font-size: 11px; font-weight: bold; border-radius: 5px; padding: 2px 8px; border: 1px solid {color}40;")
         return lbl
-
-    def on_zoom_changed(self, value):
-        self.zoom_val_lbl.setText(f"{value} px")
-        self.table.verticalHeader().setDefaultSectionSize(value)
-        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
-        font = self.table.font()
-        font.setPointSize(font_size)
-        self.table.setFont(font)
-        self.table.resizeRowsToContents()
 
     def start_generation(self):
         self.generate_btn.setEnabled(False)
