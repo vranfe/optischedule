@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt, Signal
+from sqlalchemy.orm import joinedload
 from app.database.database import get_db, SessionLocal
 from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot, Group, Teacher, Room, Subject
 from app.optimization.constraint_solver import ScheduleSolver
@@ -276,21 +277,28 @@ class SolutionComparisonView(QWidget):
             evaluator = Evaluator(db)
             current_res = evaluator.evaluate()
             
-            # Fetch current assignments in dict format for preview
-            curr_asgs = db.query(ScheduleAssignment).all()
+            # Fetch current assignments in dict format for preview with eager loading
+            curr_asgs = db.query(ScheduleAssignment).options(
+                joinedload(ScheduleAssignment.group).joinedload(Group.subject),
+                joinedload(ScheduleAssignment.teacher),
+                joinedload(ScheduleAssignment.room)
+            ).all()
             assignments_list = []
             for a in curr_asgs:
+                subj = a.group.subject if a.group else None
                 assignments_list.append({
                     "group_id": a.group_id,
-                    "subject_name": a.group.subject.name if a.group and a.group.subject else "",
+                    "subject_name": subj.name if subj else "",
                     "group_name": a.group.name if a.group else "",
                     "teacher_name": a.teacher.name if a.teacher else "",
                     "room_name": a.room.name if a.room else "",
                     "day": a.day.value if hasattr(a.day, "value") else a.day,
-                    "time_slot_id": a.time_slot_id
+                    "time_slot_id": a.time_slot_id,
+                    "semester": subj.semester_id if subj else None
                 })
         finally:
             db.close()
+
 
         self.solutions = [
             {
@@ -467,7 +475,13 @@ class SolutionComparisonView(QWidget):
         db = SessionLocal()
         try:
             slots = db.query(TimeSlot).all()
-            groups_map = {g.id: g for g in db.query(Group).all()}
+            groups_dict = {}
+            for g in db.query(Group).options(joinedload(Group.subject)).all():
+                groups_dict[g.id] = {
+                    "name": g.name,
+                    "subject_name": g.subject.name if g.subject else "",
+                    "semester_id": g.subject.semester_id if g.subject else None
+                }
             teachers_map = {t.id: t.name for t in db.query(Teacher).all()}
             rooms_map = {r.id: r.name for r in db.query(Room).all()}
         finally:
@@ -510,8 +524,8 @@ class SolutionComparisonView(QWidget):
                 day_val = day_val.value
 
             group_id = asg.get("group_id")
-            group_obj = groups_map.get(group_id)
-            sem_id = asg.get("semester") or (group_obj.subject.semester_id if group_obj and group_obj.subject else None)
+            g_info = groups_dict.get(group_id, {})
+            sem_id = asg.get("semester") or g_info.get("semester_id")
 
             # Filter by semester if selected
             if selected_sem is not None and sem_id is not None and sem_id != selected_sem:
@@ -524,13 +538,14 @@ class SolutionComparisonView(QWidget):
                 slot_obj = next((sl for sl in sorted_slots if sl.id == time_slot_id), None)
                 bg_color = shift_colors.get(slot_obj.shift, "#ffffff") if slot_obj else "#ffffff"
 
-                subj_name = asg.get("subject_name") or (group_obj.subject.name if group_obj and group_obj.subject else "")
-                group_name = asg.get("group_name") or (group_obj.name if group_obj else "")
+                subj_name = asg.get("subject_name") or g_info.get("subject_name", "")
+                group_name = asg.get("group_name") or g_info.get("name", "")
                 teacher_name = asg.get("teacher_name") or teachers_map.get(asg.get("teacher_id"), "")
                 room_name = asg.get("room_name") or rooms_map.get(asg.get("room_id"), "")
 
                 sem_tag = f"Sem {sem_id} • " if sem_id else ""
                 text = f"📘 {subj_name} ({group_name})\n[{sem_tag}{room_name}]\n👨‍🏫 {teacher_name}"
+
                 
                 curr = self.schedule_table.item(r_idx, c_idx)
                 if curr and curr.text():

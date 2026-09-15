@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 import os
 import sys
 
@@ -47,3 +47,28 @@ def test_logout(setup_data):
     assert session.is_authenticated is True
     AuthService.logout()
     assert session.is_authenticated is False
+
+def test_role_views_instantiation(setup_data):
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+
+    from app.ui.main_window import MainWindow
+
+    # Test Admin view creation (includes SolutionComparisonView)
+    AuthService.authenticate("admin", "123")
+    w_admin = MainWindow()
+    w_admin.setup_role_navigation(UserRole.ADMIN)
+    assert w_admin is not None
+
+    # Test Teacher view creation (includes TeacherScheduleView)
+    AuthService.authenticate("docente1", "123")
+    w_teacher = MainWindow()
+    w_teacher.setup_role_navigation(UserRole.TEACHER)
+    assert w_teacher is not None
+
+    # Test Student view creation (includes StudentScheduleView)
+    AuthService.authenticate("estudiante1", "123")
+    w_student = MainWindow()
+    w_student.setup_role_navigation(UserRole.STUDENT)
+    assert w_student is not None
+

@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, 
     QTableWidgetItem, QHeaderView, QPushButton, QFrame,
-    QFileDialog, QMessageBox
+    QFileDialog, QMessageBox, QSlider
 )
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt

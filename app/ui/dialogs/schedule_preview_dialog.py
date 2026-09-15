@@ -6,8 +6,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt
 import csv
+from sqlalchemy.orm import joinedload
 from app.database.database import SessionLocal
-from app.database.models import TimeSlot, DayOfWeek, ShiftType
+from app.database.models import TimeSlot, DayOfWeek, ShiftType, Group, Teacher, Room
 
 from app.ui.excel_exporter import export_schedule_dialog
 
@@ -274,6 +275,15 @@ class SchedulePreviewDialog(QDialog):
         db = SessionLocal()
         try:
             slots = db.query(TimeSlot).all()
+            groups_dict = {}
+            for g in db.query(Group).options(joinedload(Group.subject)).all():
+                groups_dict[g.id] = {
+                    "name": g.name,
+                    "subject_name": g.subject.name if g.subject else "",
+                    "semester_id": g.subject.semester_id if g.subject else None
+                }
+            teachers_map = {t.id: t.name for t in db.query(Teacher).all()}
+            rooms_map = {r.id: r.name for r in db.query(Room).all()}
         finally:
             db.close()
 
@@ -348,10 +358,15 @@ class SchedulePreviewDialog(QDialog):
                     slot_obj = next((sl for sl in sorted_slots if sl.id == time_slot_id), None)
                     shift_theme = shift_colors.get(slot_obj.shift, {"bg": "#f8fafc", "text": "#0f172a"}) if slot_obj else {"bg": "#f8fafc", "text": "#0f172a"}
 
+                    subj_name = asg.get('subject_name') or groups_dict.get(asg.get('group_id'), {}).get('subject_name', '')
+                    group_name = asg.get('group_name') or groups_dict.get(asg.get('group_id'), {}).get('name', '')
+                    teacher_name = asg.get('teacher_name') or teachers_map.get(asg.get('teacher_id'), '')
+                    room_name = asg.get('room_name') or rooms_map.get(asg.get('room_id'), '')
+
                     text = (
-                        f"📘 {asg.get('subject_name', '')} ({asg.get('group_name', '')})\n"
-                        f"👨‍🏫 {asg.get('teacher_name', '')}\n"
-                        f"📍 {asg.get('room_name', '')}"
+                        f"📘 {subj_name} ({group_name})\n"
+                        f"👨‍🏫 {teacher_name}\n"
+                        f"📍 {room_name}"
                     )
                     curr = self.table.item(r_idx, c_idx)
                     if curr and curr.text():
@@ -365,6 +380,7 @@ class SchedulePreviewDialog(QDialog):
                         font.setBold(True)
                         cell_item.setFont(font)
                         self.table.setItem(r_idx, c_idx, cell_item)
+
 
         self.table.resizeRowsToContents()
 
