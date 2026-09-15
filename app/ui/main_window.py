@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QMainWindow, QLabel, QVBoxLayout, QWidget, QStackedWidget, 
-    QListWidget, QHBoxLayout, QPushButton, QFrame
+    QListWidget, QHBoxLayout, QPushButton, QFrame, QScrollArea
 )
 from PySide6.QtCore import Qt
 from app.auth.session import session
@@ -311,33 +311,46 @@ class MainWindow(QMainWindow):
             self._clear_content()
 
             if role == UserRole.ADMIN:
+                dashboard_view = DashboardView(nav_callback=self.navigate_to)
+                schedule_view = ScheduleView()
+                comparison_view = SolutionComparisonView()
+
+                # Live signal connection: applying a solution updates schedule and dashboard in real time
+                comparison_view.solution_applied.connect(schedule_view.load_schedule)
+                comparison_view.solution_applied.connect(dashboard_view.load_stats)
+
                 views = [
-                    ("📊 Dashboard General", DashboardView(nav_callback=self.navigate_to)),
-                    ("⚡ Horario Institucional", ScheduleView()),
-                    ("⚖️ Comparar Soluciones", SolutionComparisonView()),
+                    ("📊 Dashboard General", dashboard_view),
+                    ("⚡ Horario Institucional", schedule_view),
+                    ("⚖️ Comparar Soluciones", comparison_view),
                     ("📈 Carga y Subcarga Docente", WorkloadView()),
                     ("⚙️ Reglas y Calendario", RulesView()),
                     ("📝 Preferencias Docentes", PreferencesView()),
                     ("🎯 Evaluación y Métricas", ResultsView()),
                     ("🎓 Estudiantes (CRUD)", GenericTableView(
-                        "Estudiantes", ["ID", "Nombre", "Semestre", "Nivelado", "Inscrito", "Acuerdo Pago"],
+                        "Estudiantes", 
+                        ["ID Estudiante", "👤 Nombre Completo", "🎓 Semestre", "⚖️ Nivelación", "📋 Matrícula", "💳 Acuerdo de Pago"],
                         Student, ["id", "name", "semester_id", "is_regular", "is_enrolled", "has_payment_agreement"]
                     )),
                     ("👨‍🏫 Docentes (CRUD)", GenericTableView(
-                        "Docentes", ["ID", "Nombre", "Tipo Contrato"],
+                        "Docentes", 
+                        ["ID Docente", "👨‍🏫 Nombre Completo", "📜 Modalidad Contractual"],
                         Teacher, ["id", "name", "teacher_type"],
                         enum_mappings={"teacher_type": TeacherType}
                     )),
                     ("📚 Asignaturas (CRUD)", GenericTableView(
-                        "Asignaturas", ["ID", "Nombre", "Horas Semanales", "Semestre"],
+                        "Asignaturas", 
+                        ["ID Asignatura", "📖 Nombre de la Materia", "⏱️ Horas / Semana", "🎓 Semestre Malla"],
                         Subject, ["id", "name", "hours_per_week", "semester_id"]
                     )),
                     ("👥 Grupos (CRUD)", GenericTableView(
-                        "Grupos", ["ID", "Nombre", "ID Asignatura", "Estudiantes Estimados"],
+                        "Grupos", 
+                        ["ID Grupo", "👥 Código de Grupo", "ID Asignatura", "📊 Estudiantes Estimados"],
                         Group, ["id", "name", "subject_id", "expected_students"]
                     )),
                     ("📍 Aulas (CRUD)", GenericTableView(
-                        "Aulas", ["ID", "Nombre", "Capacidad", "Tipo Aula"],
+                        "Aulas", 
+                        ["ID Aula", "📍 Nombre / Número", "👥 Capacidad Máxima", "🏢 Tipo de Espacio"],
                         Room, ["id", "name", "capacity", "room_type"]
                     ))
                 ]
@@ -362,7 +375,16 @@ class MainWindow(QMainWindow):
 
             for title, widget in views:
                 self.menu_list.addItem(title)
-                self.content_stack.addWidget(widget)
+                # Wrap extensive pages in fluid QScrollArea to prevent clipping on smaller resolutions
+                if isinstance(widget, (DashboardView, WorkloadView, RulesView, PreferencesView, ResultsView)):
+                    scroll = QScrollArea()
+                    scroll.setWidgetResizable(True)
+                    scroll.setFrameShape(QFrame.NoFrame)
+                    scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+                    scroll.setWidget(widget)
+                    self.content_stack.addWidget(scroll)
+                else:
+                    self.content_stack.addWidget(widget)
 
             if views:
                 self.menu_list.setCurrentRow(0)

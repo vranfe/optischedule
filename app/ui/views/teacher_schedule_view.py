@@ -9,6 +9,7 @@ import csv
 from app.database.database import SessionLocal
 from app.database.models import Teacher, ScheduleAssignment, TimeSlot, DayOfWeek
 from app.auth.session import session
+from app.ui.excel_exporter import export_schedule_dialog
 
 class TeacherScheduleView(QWidget):
     def __init__(self):
@@ -35,7 +36,7 @@ class TeacherScheduleView(QWidget):
         header.addLayout(title_layout)
 
         btns_layout = QHBoxLayout()
-        export_btn = QPushButton("📥 Exportar Mi Horario (CSV)")
+        export_btn = QPushButton("📥 Exportar Mi Horario (Excel / CSV)")
         export_btn.setCursor(Qt.PointingHandCursor)
         export_btn.setStyleSheet("""
             QPushButton {
@@ -343,47 +344,16 @@ class TeacherScheduleView(QWidget):
                 _ = asg.time_slot
                 _ = asg.group.subject if asg.group else None
                 _ = asg.room
-            teacher_name = teacher.name
+            clean_name = teacher_name.replace(" ", "_")
+            export_schedule_dialog(
+                self,
+                f"Horario_{clean_name}.xlsx",
+                self.table,
+                assignments,
+                title=f"Horario Semanal Docente - {teacher_name}"
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error de Exportación", f"No se pudo guardar el archivo:\n{e}")
         finally:
             db.close()
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "Exportar Mi Horario", f"Horario_{teacher_name.replace(' ', '_')}.csv", "Archivos CSV (*.csv)")
-        if not file_path:
-            return
-
-        try:
-            with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f, delimiter=";")
-                
-                # 1. Weekly 2D Timetable Matrix
-                writer.writerow([f"=== HORARIO SEMANAL DOCENTE - {teacher_name.upper()} ==="])
-                writer.writerow(["Franja Horaria / Jornada", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"])
-                for r in range(self.table.rowCount()):
-                    header_item = self.table.verticalHeaderItem(r)
-                    row_header = header_item.text().replace("\n", " ") if header_item else f"Franja {r+1}"
-                    row_data = [row_header]
-                    for c in range(self.table.columnCount()):
-                        item = self.table.item(r, c)
-                        text = item.text().replace("\n", " | ") if item and item.text() else "---"
-                        row_data.append(text)
-                    writer.writerow(row_data)
-                
-                writer.writerow([])
-                writer.writerow(["=== DESGLOSE DETALLADO DE CLASES ==="])
-                writer.writerow(["Día", "Jornada", "Hora Inicio", "Hora Fin", "Asignatura", "Semestre", "Grupo", "Aula", "Tipo Aula"])
-                for asg in assignments:
-                    slot = asg.time_slot
-                    writer.writerow([
-                        asg.day.value,
-                        slot.shift.value if slot else "",
-                        slot.start_time.strftime('%H:%M') if slot else "",
-                        slot.end_time.strftime('%H:%M') if slot else "",
-                        asg.group.subject.name if asg.group and asg.group.subject else "",
-                        asg.group.subject.semester_id if asg.group and asg.group.subject else "",
-                        asg.group.name if asg.group else "",
-                        asg.room.name if asg.room else "",
-                        asg.room.room_type if asg.room else ""
-                    ])
-            QMessageBox.information(self, "Exportación Exitosa", f"Tu horario se ha exportado correctamente a:\n{file_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error de Exportación", f"No se pudo guardar el archivo:\n{e}")

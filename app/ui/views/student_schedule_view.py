@@ -16,6 +16,7 @@ from app.database.models import (
 from app.optimization.student_optimizer import StudentScheduleOptimizer
 from app.auth.session import session
 from app.ui.dialogs.schedule_preview_dialog import SchedulePreviewDialog
+from app.ui.excel_exporter import export_schedule_dialog
 
 class StudentScheduleView(QWidget):
     def __init__(self):
@@ -769,22 +770,6 @@ class StudentScheduleView(QWidget):
         self.preview_option(option_index)
         self.open_modal_for_option(option_index)
 
-    def on_preview_slider_changed(self, value):
-        self.preview_table.verticalHeader().setDefaultSectionSize(value)
-        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
-        font = self.preview_table.font()
-        font.setPointSize(font_size)
-        self.preview_table.setFont(font)
-        self.preview_table.resizeRowsToContents()
-
-    def on_official_slider_changed(self, value):
-        self.official_table.verticalHeader().setDefaultSectionSize(value)
-        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
-        font = self.official_table.font()
-        font.setPointSize(font_size)
-        self.official_table.setFont(font)
-        self.official_table.resizeRowsToContents()
-
     def preview_option(self, option_index):
         if option_index >= len(self.optimizer_options):
             return
@@ -794,7 +779,7 @@ class StudentScheduleView(QWidget):
         self.save_schedule_btn.setEnabled(True)
         
         if not self.is_enrollment_allowed:
-            self.save_schedule_btn.setText(f"⚠️ INSCRIBIR (FUERA DE FECHA - REQUERIRÁ AUTORIZACIÓN)")
+            self.save_schedule_btn.setText(f"🔒 INCRIPCIÓN CERRADA (FUERA DE FECHA INSTITUCIONAL)")
         else:
             self.save_schedule_btn.setText(f"✅ CONFIRMAR E INSCRIBIR ALTERNATIVA #{option_index + 1} (Calidad: {self.current_preview_option['global_score']}%)")
 
@@ -871,24 +856,40 @@ class StudentScheduleView(QWidget):
         if not self.current_preview_option:
             return
 
-        if not self.is_enrollment_allowed:
-            reply = QMessageBox.question(
-                self, "Inscripción Fuera de Fecha",
-                "Estás intentando inscribir materias fuera del período regular establecido en el calendario institucional.\n\n¿Deseas continuar bajo excepción académica autorizada?",
-                QMessageBox.Yes | QMessageBox.No
-            )
-            if reply != QMessageBox.Yes:
-                return
-
         db = SessionLocal()
         try:
             student_id = session.student_id or 1
+            student = db.query(Student).filter_by(id=student_id).first()
+            config = db.query(Config).first()
+
+            # Validación de Estado Financiero Estudiantil
+            if config and not config.payment_agreement_allowed and student and student.has_payment_agreement:
+                QMessageBox.warning(
+                    self, "Trámite Financiero Requerido",
+                    "Tu estado de cuenta presenta un acuerdo de pago pendiente de legalización ante la Universidad Manuela Beltrán.\n\n"
+                    "Por favor tramita tu paz y salvo formal ante la Oficina de Tesorería y Cartera para habilitar la inscripción de asignaturas.\n\n"
+                    "Este trámite no puede ser omitido o autorizado de manera autónoma por el estudiante."
+                )
+                return
+
+            # Validación de Período Regular de Matrícula
+            if not self.is_enrollment_allowed:
+                QMessageBox.warning(
+                    self, "Período de Matrícula Cerrado",
+                    "El período de inscripción para tu cohorte ha finalizado (o aún no inicia según el calendario académico institucional).\n\n"
+                    "Cualquier solicitud de matrícula extemporánea debe ser radicada y aprobada formalmente ante la Coordinación de Programa de la Universidad."
+                )
+                return
+
             group_ids = [g_id for _, g_id, _ in self.current_preview_option["groups"]]
 
             optimizer = StudentScheduleOptimizer(db, student_id)
             optimizer.save_selected_schedule(group_ids)
 
-            QMessageBox.information(self, "Inscripción Exitosa", "¡Tu horario personalizado ha sido confirmado e inscrito exitosamente en el sistema!")
+            QMessageBox.information(
+                self, "Inscripción Exitosa", 
+                "¡Tu horario personalizado ha sido confirmado e inscrito exitosamente en el sistema institucional!"
+            )
             self.load_official_schedule()
             self.tabs.setCurrentIndex(1)
         finally:
@@ -949,10 +950,6 @@ class StudentScheduleView(QWidget):
             db.close()
 
     def export_my_schedule(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Exportar Mi Horario", "Mi_Horario_UMB.csv", "Archivos CSV (*.csv)")
-        if not file_path:
-            return
-
         db = SessionLocal()
         try:
             student_id = session.student_id or 1
@@ -962,39 +959,16 @@ class StudentScheduleView(QWidget):
             enrolled_group_ids = {e.group_id for e in enrollments}
             assignments = db.query(ScheduleAssignment).filter(ScheduleAssignment.group_id.in_(enrolled_group_ids)).all()
 
-            with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f, delimiter=";")
-                
-                # 1. Weekly 2D Timetable Matrix
-                writer.writerow([f"=== HORARIO OFICIAL ESTUDIANTE - {student_name.upper()} ==="])
-                writer.writerow(["Franja Horaria / Jornada", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"])
-                for r in range(self.official_table.rowCount()):
-                    header_item = self.official_table.verticalHeaderItem(r)
-                    row_header = header_item.text().replace("\n", " ") if header_item else f"Franja {r+1}"
-                    row_data = [row_header]
-                    for c in range(self.official_table.columnCount()):
-                        item = self.official_table.item(r, c)
-                        text = item.text().replace("\n", " | ") if item and item.text() else "---"
-                        row_data.append(text)
-                    writer.writerow(row_data)
-                
-                writer.writerow([])
-                writer.writerow(["=== DETALLE DE ASIGNATURAS INSCRITAS ==="])
-                writer.writerow(["Día", "Jornada", "Hora Inicio", "Hora Fin", "Asignatura", "Grupo", "Docente", "Aula"])
-                for asg in assignments:
-                    slot = asg.time_slot
-                    writer.writerow([
-                        asg.day.value,
-                        slot.shift.value if slot else "",
-                        slot.start_time.strftime('%H:%M') if slot else "",
-                        slot.end_time.strftime('%H:%M') if slot else "",
-                        asg.group.subject.name if asg.group and asg.group.subject else "",
-                        asg.group.name if asg.group else "",
-                        asg.teacher.name if asg.teacher else "",
-                        asg.room.name if asg.room else ""
-                    ])
-            QMessageBox.information(self, "Exportación Exitosa", f"Tu horario ha sido exportado exitosamente a:\n{file_path}")
+            clean_name = student_name.replace(" ", "_")
+            export_schedule_dialog(
+                self,
+                f"Mi_Horario_{clean_name}.xlsx",
+                self.official_table,
+                assignments,
+                title=f"Horario Oficial Estudiante - {student_name}"
+            )
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error al exportar: {e}")
         finally:
             db.close()
+

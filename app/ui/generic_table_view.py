@@ -82,27 +82,44 @@ class GenericTableView(QWidget):
         note_lbl.setStyleSheet("font-size: 11px; color: #64748b; margin-left: 5px;")
         layout.addWidget(note_lbl)
 
-        # Table
+        # Table with Pixel-based Fluid Scrolling and High Visibility
         self.table = QTableWidget()
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setVerticalScrollMode(QTableWidget.ScrollPerPixel)
+        self.table.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
+        self.table.verticalScrollBar().setSingleStep(12)
+        
+        # Smart Column Sizing: Compact ID, stretched name
+        for c_i in range(len(headers)):
+            if c_i == 0:
+                self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            elif c_i == 1:
+                self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+            else:
+                self.table.horizontalHeader().setSectionResizeMode(c_i, QHeaderView.ResizeToContents)
+
         self.table.setStyleSheet("""
             QTableWidget {
                 gridline-color: #cbd5e1;
                 background-color: #ffffff;
                 color: #0f172a;
                 font-size: 13px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 8px;
             }
             QHeaderView::section {
                 background-color: #1e293b;
                 color: #ffffff;
-                padding: 8px;
-                font-weight: bold;
+                padding: 9px 12px;
+                font-weight: 800;
+                font-size: 12px;
+                border: none;
+                border-right: 1px solid #334155;
             }
             QTableWidget::item:selected {
-                background-color: #93c5fd;
-                color: #0f172a;
+                background-color: #e0e7ff;
+                color: #1e3a8a;
             }
         """)
         self.table.itemChanged.connect(self.on_cell_edited)
@@ -123,12 +140,20 @@ class GenericTableView(QWidget):
                     if hasattr(val, "value"): # Enum
                         val = val.value
                     elif isinstance(val, bool):
-                        val = "Sí" if val else "No"
+                        if k == "is_regular":
+                            val = "🟢 Sí (Nivelado)" if val else "🟡 No (Rezagado)"
+                        elif k == "has_payment_agreement":
+                            val = "📋 Con Acuerdo" if val else "💳 Al Día (Paz y Salvo)"
+                        elif k == "is_enrolled":
+                            val = "✅ Matriculado" if val else "❌ No Inscrito"
+                        else:
+                            val = "🟢 Sí" if val else "🔴 No"
                     elif val is None:
                         val = ""
                     row_vals.append(val)
                 self.raw_data.append(row_vals)
         finally:
+            db.close()
             self.is_loading = False
 
         self.filter_data(self.search_input.text())
@@ -152,8 +177,12 @@ class GenericTableView(QWidget):
                 item = QTableWidgetItem(str(col_data))
                 if col_idx == 0: # ID column is non-editable
                     item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    item.setTextAlignment(Qt.AlignCenter)
                     item.setForeground(Qt.darkGray)
                 else:
+                    # Centered alignment for badges/status
+                    if any(badge_icon in str(col_data) for badge_icon in ["🟢", "🟡", "🔴", "✅", "❌", "📋", "💳"]):
+                        item.setTextAlignment(Qt.AlignCenter)
                     item.setForeground(Qt.black)
                 self.table.setItem(row_idx, col_idx, item)
         self.is_loading = False

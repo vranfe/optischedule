@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 from app.database.database import SessionLocal
 from app.database.models import (
     Teacher, Subject, TimeSlot, DayOfWeek, TeacherAvailability, 
-    TeacherSubjectPreference, ShiftType
+    TeacherSubjectPreference, ShiftType, TeacherType
 )
 from app.auth.session import session
 
@@ -95,10 +95,33 @@ class PreferencesView(QWidget):
         avail_layout = QVBoxLayout(self.avail_tab)
         avail_layout.setSpacing(12)
 
+        # Full-Time Institutional Notice Card
+        self.ft_notice_card = QFrame()
+        self.ft_notice_card.setStyleSheet("""
+            QFrame {
+                background-color: #eff6ff;
+                border: 1.5px solid #3b82f6;
+                border-left: 6px solid #2563eb;
+                border-radius: 8px;
+                padding: 10px 16px;
+            }
+        """)
+        ft_n_layout = QVBoxLayout(self.ft_notice_card)
+        ft_n_layout.setSpacing(2)
+        ft_n_title = QLabel("🏛️ Régimen Docente: Dedicación de Tiempo Completo (42 hrs)")
+        ft_n_title.setStyleSheet("font-size: 13px; font-weight: 800; color: #1e3a8a;")
+        ft_n_sub = QLabel("Por estatuto profesoral y contrato de exclusividad de la Universidad Manuela Beltrán, la disponibilidad horaria es 100% institucional y la asigna la Dirección de Programa. Tu ponderación principal se configura en la pestaña de <b>Afinidad de Asignaturas</b>.")
+        ft_n_sub.setStyleSheet("font-size: 11px; color: #334155; line-height: 1.4;")
+        ft_n_sub.setWordWrap(True)
+        ft_n_layout.addWidget(ft_n_title)
+        ft_n_layout.addWidget(ft_n_sub)
+        self.ft_notice_card.setVisible(False)
+        avail_layout.addWidget(self.ft_notice_card)
+
         # Quick actions bar
-        bar_card = QFrame()
-        bar_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px;")
-        bar_layout = QHBoxLayout(bar_card)
+        self.bar_card = QFrame()
+        self.bar_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px;")
+        bar_layout = QHBoxLayout(self.bar_card)
         bar_layout.setSpacing(8)
 
         info_lbl = QLabel("<b>Acciones Rápidas de Selección:</b>")
@@ -136,7 +159,7 @@ class PreferencesView(QWidget):
         bar_layout.addWidget(btn_night)
 
         bar_layout.addStretch()
-        avail_layout.addWidget(bar_card)
+        avail_layout.addWidget(self.bar_card)
 
         # Availability Table
         self.avail_table = QTableWidget()
@@ -227,6 +250,12 @@ class PreferencesView(QWidget):
 
         db = SessionLocal()
         try:
+            teacher = db.query(Teacher).filter_by(id=teacher_id).first()
+            is_full_time = (teacher and teacher.teacher_type == TeacherType.FULL_TIME)
+
+            self.ft_notice_card.setVisible(is_full_time)
+            self.bar_card.setEnabled(not is_full_time)
+
             slots = db.query(TimeSlot).all()
             self.sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
             
@@ -248,8 +277,14 @@ class PreferencesView(QWidget):
             for r_idx, slot in enumerate(self.sorted_slots):
                 for c_idx, day_val in enumerate(self.days):
                     cb = QCheckBox()
-                    cb.setChecked((day_val, slot.id) in avail_set)
-                    cb.setCursor(Qt.PointingHandCursor)
+                    if is_full_time:
+                        cb.setChecked(True)
+                        cb.setEnabled(False)
+                        cb.setToolTip("Docente de Tiempo Completo: 100% de disponibilidad institucional garantizada.")
+                    else:
+                        cb.setChecked((day_val, slot.id) in avail_set)
+                        cb.setEnabled(True)
+                        cb.setCursor(Qt.PointingHandCursor)
                     
                     cell_widget = QWidget()
                     cell_layout = QHBoxLayout(cell_widget)
