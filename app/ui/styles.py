@@ -131,23 +131,26 @@ QPushButton:disabled {
     color: #94a3b8;
 }
 
-/* QMessageBox & QDialog Styling - Clean Background, Borders & High Contrast Visibility */
-QDialog, QMessageBox {
+/* QMessageBox, QDialog & QInputDialog Styling - Crisp White Background, Strong Border & High Contrast */
+QDialog, QMessageBox, QInputDialog {
     background-color: #ffffff;
     border: 2px solid #cbd5e1;
     border-radius: 12px;
 }
 
-QMessageBox QLabel {
+QMessageBox QLabel, QInputDialog QLabel, QDialog QLabel {
     color: #0f172a;
     font-size: 13px;
     font-weight: 600;
+}
+
+QMessageBox QLabel {
     min-height: 40px;
-    padding: 6px;
+    padding: 8px;
 }
 
 /* Primary Confirmation & Action Buttons in Dialogs */
-QMessageBox QPushButton, QDialogButtonBox QPushButton, QDialog QPushButton {
+QMessageBox QPushButton, QDialogButtonBox QPushButton, QDialog QPushButton, QInputDialog QPushButton {
     background-color: #10b981;
     color: #ffffff;
     font-size: 13px;
@@ -159,24 +162,27 @@ QMessageBox QPushButton, QDialogButtonBox QPushButton, QDialog QPushButton {
     border: 1.5px solid #059669;
 }
 
-QMessageBox QPushButton:hover, QDialogButtonBox QPushButton:hover, QDialog QPushButton:hover {
+QMessageBox QPushButton:hover, QDialogButtonBox QPushButton:hover, QDialog QPushButton:hover, QInputDialog QPushButton:hover {
     background-color: #059669;
     border-color: #047857;
 }
 
-QMessageBox QPushButton:pressed, QDialogButtonBox QPushButton:pressed, QDialog QPushButton:pressed {
+QMessageBox QPushButton:pressed, QDialogButtonBox QPushButton:pressed, QDialog QPushButton:pressed, QInputDialog QPushButton:pressed {
     background-color: #047857;
 }
 
-/* Explicit Action: OK / Sí / Yes / Aceptar Buttons */
+/* Explicit Action: OK / Sí / Yes / Aceptar / Guardar / Confirmar / Inscribir */
 QMessageBox QPushButton[text="&Sí"], QMessageBox QPushButton[text="Sí"],
 QMessageBox QPushButton[text="&Yes"], QMessageBox QPushButton[text="Yes"],
 QMessageBox QPushButton[text="&OK"], QMessageBox QPushButton[text="OK"],
 QMessageBox QPushButton[text="&Aceptar"], QMessageBox QPushButton[text="Aceptar"],
+QMessageBox QPushButton[text="&Confirmar"], QMessageBox QPushButton[text="Confirmar"],
+QMessageBox QPushButton[text="&Inscribir"], QMessageBox QPushButton[text="Inscribir"],
 QDialogButtonBox QPushButton[text="&OK"], QDialogButtonBox QPushButton[text="OK"],
 QDialogButtonBox QPushButton[text="&Save"], QDialogButtonBox QPushButton[text="Save"],
 QDialogButtonBox QPushButton[text="Guardar"], QDialogButtonBox QPushButton[text="&Guardar"],
-QDialogButtonBox QPushButton[text="&Aceptar"], QDialogButtonBox QPushButton[text="Aceptar"] {
+QDialogButtonBox QPushButton[text="&Aceptar"], QDialogButtonBox QPushButton[text="Aceptar"],
+QDialogButtonBox QPushButton[text="&Confirmar"], QDialogButtonBox QPushButton[text="Confirmar"] {
     background-color: #10b981;
     color: #ffffff;
     border: 2px solid #059669;
@@ -187,7 +193,8 @@ QMessageBox QPushButton[text="&Yes"]:hover, QMessageBox QPushButton[text="Yes"]:
 QMessageBox QPushButton[text="&OK"]:hover, QMessageBox QPushButton[text="OK"]:hover,
 QMessageBox QPushButton[text="&Aceptar"]:hover, QMessageBox QPushButton[text="Aceptar"]:hover,
 QDialogButtonBox QPushButton[text="&OK"]:hover, QDialogButtonBox QPushButton[text="OK"]:hover,
-QDialogButtonBox QPushButton[text="&Save"]:hover, QDialogButtonBox QPushButton[text="Save"]:hover {
+QDialogButtonBox QPushButton[text="&Save"]:hover, QDialogButtonBox QPushButton[text="Save"]:hover,
+QDialogButtonBox QPushButton[text="Guardar"]:hover, QDialogButtonBox QPushButton[text="&Guardar"]:hover {
     background-color: #059669;
     border-color: #047857;
 }
@@ -217,6 +224,22 @@ QDialogButtonBox QPushButton[text="Cancel"]:hover, QDialogButtonBox QPushButton[
     background-color: #cbd5e1;
     color: #000000;
     border-color: #64748b;
+}
+
+/* Danger / Delete Action Buttons in Dialogs */
+QMessageBox QPushButton[text="Eliminar"], QMessageBox QPushButton[text="&Eliminar"],
+QMessageBox QPushButton[text="Borrar"], QMessageBox QPushButton[text="&Borrar"],
+QDialogButtonBox QPushButton[text="Eliminar"], QDialogButtonBox QPushButton[text="&Eliminar"] {
+    background-color: #dc2626;
+    color: #ffffff;
+    font-weight: 800;
+    border: 2px solid #b91c1c;
+}
+
+QMessageBox QPushButton[text="Eliminar"]:hover, QMessageBox QPushButton[text="&Eliminar"]:hover,
+QDialogButtonBox QPushButton[text="Eliminar"]:hover, QDialogButtonBox QPushButton[text="&Eliminar"]:hover {
+    background-color: #b91c1c;
+    border-color: #991b1b;
 }
 
 /* Button Variants */

@@ -9,10 +9,12 @@ import csv
 from app.database.database import SessionLocal
 from app.database.models import TimeSlot, DayOfWeek, ShiftType
 
+from app.ui.excel_exporter import export_schedule_dialog
+
 class SchedulePreviewDialog(QDialog):
     """
     Modal dialog to preview full weekly schedule alternatives with 
-    zoom slider, distinct shift color bands, and instant CSV export.
+    fluid lateral navigation slider, distinct shift color bands, and Excel/CSV export.
     """
     def __init__(self, title_text, groups_data=None, assignments_data=None, metrics=None, parent=None, on_confirm_callback=None):
         super().__init__(parent)
@@ -25,7 +27,7 @@ class SchedulePreviewDialog(QDialog):
         self.base_row_height = 54
         
         self.setWindowTitle(f"OptiSchedule UMB - Vista Previa: {self.title_text}")
-        self.resize(1080, 720)
+        self.resize(1120, 750)
         self.init_ui()
 
     def init_ui(self):
@@ -86,9 +88,9 @@ class SchedulePreviewDialog(QDialog):
 
         layout.addWidget(header_card)
 
-        # Controls & Metrics Bar (Pills + Zoom Slider + Shift Legend)
+        # Controls Bar (Pills Legend)
         controls_bar = QFrame()
-        controls_bar.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px;")
+        controls_bar.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 14px;")
         c_layout = QHBoxLayout(controls_bar)
         c_layout.setSpacing(12)
 
@@ -96,28 +98,18 @@ class SchedulePreviewDialog(QDialog):
         c_layout.addWidget(self._create_legend_dot("☀️ Mañana (8-12)", "#0284c7", "#e0f2fe"))
         c_layout.addWidget(self._create_legend_dot("⛅ Tarde (13-17)", "#059669", "#d1fae5"))
         c_layout.addWidget(self._create_legend_dot("🌙 Noche (18-22)", "#7c3aed", "#ede9fe"))
-
         c_layout.addStretch()
 
-        # Height / Density Slider
-        zoom_label = QLabel("🎚️ <b>Ajuste de Visualización / Altura:</b>")
-        zoom_label.setStyleSheet("color: #334155; font-size: 12px;")
-        c_layout.addWidget(zoom_label)
-
-        self.zoom_slider = QSlider(Qt.Horizontal)
-        self.zoom_slider.setRange(45, 130)
-        self.zoom_slider.setValue(55)
-        self.zoom_slider.setFixedWidth(140)
-        self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
-        c_layout.addWidget(self.zoom_slider)
-
-        self.zoom_val_lbl = QLabel("55 px")
-        self.zoom_val_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4f46e5; min-width: 40px;")
-        c_layout.addWidget(self.zoom_val_lbl)
+        nav_hint = QLabel("💡 <i>Usa el slider lateral o la rueda del ratón para navegar fluidamente por las jornadas</i>")
+        nav_hint.setStyleSheet("font-size: 11px; color: #64748b;")
+        c_layout.addWidget(nav_hint)
 
         layout.addWidget(controls_bar)
 
-        # Timetable Grid
+        # Timetable Grid + Fluid Lateral Navigation Slider
+        table_container = QHBoxLayout()
+        table_container.setSpacing(8)
+
         self.table = QTableWidget()
         self.table.setColumnCount(len(self.days))
         self.table.setHorizontalHeaderLabels(self.days)
@@ -143,13 +135,66 @@ class SchedulePreviewDialog(QDialog):
                 border-right: 1px solid #334155;
             }
         """)
-        layout.addWidget(self.table)
+        table_container.addWidget(self.table, 1)
+
+        # Lateral Navigation Slider Box
+        lateral_box = QVBoxLayout()
+        lateral_box.setSpacing(4)
+        lateral_box.setAlignment(Qt.AlignCenter)
+
+        top_icon = QLabel("☀️")
+        top_icon.setAlignment(Qt.AlignCenter)
+        top_icon.setStyleSheet("font-size: 12px;")
+
+        mid_icon = QLabel("⛅")
+        mid_icon.setAlignment(Qt.AlignCenter)
+        mid_icon.setStyleSheet("font-size: 11px;")
+
+        bot_icon = QLabel("🌙")
+        bot_icon.setAlignment(Qt.AlignCenter)
+        bot_icon.setStyleSheet("font-size: 12px;")
+
+        self.lateral_slider = QSlider(Qt.Vertical)
+        self.lateral_slider.setRange(0, 100)
+        self.lateral_slider.setValue(0)
+        self.lateral_slider.setInvertedAppearance(True)
+        self.lateral_slider.setFixedWidth(26)
+        self.lateral_slider.setCursor(Qt.PointingHandCursor)
+        self.lateral_slider.setToolTip("Desliza lateralmente para navegar por las jornadas")
+        self.lateral_slider.setStyleSheet("""
+            QSlider::groove:vertical {
+                background: #e2e8f0;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QSlider::handle:vertical {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4f46e5, stop:1 #3730a3);
+                height: 38px;
+                margin: 0 -5px;
+                border-radius: 7px;
+                border: 1.5px solid #ffffff;
+            }
+            QSlider::handle:vertical:hover {
+                background: #4338ca;
+            }
+        """)
+        self.lateral_slider.valueChanged.connect(self._on_lateral_slider_changed)
+        self.table.verticalScrollBar().rangeChanged.connect(self._sync_lateral_slider_range)
+        self.table.verticalScrollBar().valueChanged.connect(self._sync_lateral_slider_value)
+
+        lateral_box.addWidget(top_icon)
+        lateral_box.addWidget(mid_icon)
+        lateral_box.addWidget(self.lateral_slider, 1)
+        lateral_box.addWidget(bot_icon)
+        table_container.addLayout(lateral_box)
+
+        layout.addLayout(table_container)
 
         # Action Buttons Footer
         footer_layout = QHBoxLayout()
         footer_layout.setSpacing(10)
 
-        export_btn = QPushButton("📥 Exportar Horario a CSV")
+        export_btn = QPushButton("📥 Exportar Horario (Excel / CSV)")
         export_btn.setCursor(Qt.PointingHandCursor)
         export_btn.setStyleSheet("""
             QPushButton {
@@ -163,7 +208,7 @@ class SchedulePreviewDialog(QDialog):
                 background-color: #0369a1;
             }
         """)
-        export_btn.clicked.connect(self.export_csv)
+        export_btn.clicked.connect(self.export_schedule)
         footer_layout.addWidget(export_btn)
 
         footer_layout.addStretch()
@@ -214,14 +259,16 @@ class SchedulePreviewDialog(QDialog):
         lbl.setStyleSheet(f"background-color: {bg}; color: {color}; font-size: 11px; font-weight: bold; border-radius: 5px; padding: 3px 8px; border: 1px solid {color}40;")
         return lbl
 
-    def on_zoom_changed(self, value):
-        self.zoom_val_lbl.setText(f"{value} px")
-        self.table.verticalHeader().setDefaultSectionSize(value)
-        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
-        font = self.table.font()
-        font.setPointSize(font_size)
-        self.table.setFont(font)
-        self.table.resizeRowsToContents()
+    def _on_lateral_slider_changed(self, value):
+        self.table.verticalScrollBar().setValue(value)
+
+    def _sync_lateral_slider_range(self, min_val, max_val):
+        self.lateral_slider.setRange(min_val, max_val)
+
+    def _sync_lateral_slider_value(self, value):
+        self.lateral_slider.blockSignals(True)
+        self.lateral_slider.setValue(value)
+        self.lateral_slider.blockSignals(False)
 
     def populate_grid(self):
         db = SessionLocal()
@@ -326,22 +373,30 @@ class SchedulePreviewDialog(QDialog):
             self.on_confirm_callback()
         self.accept()
 
-    def export_csv(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Exportar Horario", f"{self.title_text}.csv", "Archivos CSV (*.csv)")
-        if not file_path:
-            return
+    def export_schedule(self):
+        # Format assignments if groups_data is present
+        asg_list = list(self.assignments_data)
+        if not asg_list and self.groups_data:
+            for item in self.groups_data:
+                g_info = item[2] if isinstance(item, (list, tuple)) and len(item) == 3 else item
+                if isinstance(g_info, dict) and "slots" in g_info:
+                    for s in g_info["slots"]:
+                        asg_list.append({
+                            "day": s.get("day", ""),
+                            "shift": s.get("shift", ""),
+                            "start_time": s.get("start_time", "").strftime('%H:%M') if hasattr(s.get("start_time", ""), "strftime") else str(s.get("start_time", "")),
+                            "end_time": s.get("end_time", "").strftime('%H:%M') if hasattr(s.get("end_time", ""), "strftime") else str(s.get("end_time", "")),
+                            "subject_name": g_info.get("subject_name", ""),
+                            "group_name": g_info.get("group_name", ""),
+                            "teacher_name": g_info.get("teacher_name", ""),
+                            "room_name": g_info.get("room_name", "")
+                        })
 
-        try:
-            with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f, delimiter=";")
-                writer.writerow(["Fila / Horario", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"])
-                for r in range(self.table.rowCount()):
-                    row_data = [self.table.verticalHeaderItem(r).text().replace("\n", " ")]
-                    for c in range(self.table.columnCount()):
-                        item = self.table.item(r, c)
-                        text = item.text().replace("\n", " | ") if item else ""
-                        row_data.append(text)
-                    writer.writerow(row_data)
-            QMessageBox.information(self, "Exportación Exitosa", f"Horario exportado con éxito a:\n{file_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error al Exportar", f"No se pudo exportar el horario:\n{e}")
+        clean_name = self.title_text.replace(":", "").replace("/", "_").replace(" ", "_")
+        export_schedule_dialog(
+            self,
+            f"Horario_{clean_name}.xlsx",
+            self.table,
+            asg_list,
+            title=f"Vista Previa: {self.title_text}"
+        )

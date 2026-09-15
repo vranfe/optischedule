@@ -1,18 +1,20 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QTableWidget, QTableWidgetItem, QFrame, QHeaderView, QMessageBox,
-    QProgressBar, QScrollArea, QSlider
+    QProgressBar, QScrollArea, QSlider, QComboBox
 )
 from PySide6.QtGui import QColor, QFont
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from app.database.database import get_db, SessionLocal
-from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot
+from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot, Group, Teacher, Room, Subject
 from app.optimization.constraint_solver import ScheduleSolver
 from app.optimization.evaluator import Evaluator
 from app.ui.workers.alternatives_worker import AlternativesWorker
 from app.ui.dialogs.schedule_preview_dialog import SchedulePreviewDialog
 
 class SolutionComparisonView(QWidget):
+    solution_applied = Signal()
+
     def __init__(self):
         super().__init__()
         self.solutions = []
@@ -142,17 +144,30 @@ class SolutionComparisonView(QWidget):
         p_header.addWidget(self.preview_title_lbl)
         p_header.addStretch()
 
-        slider_lbl = QLabel("🎚️ <b>Altura:</b>")
-        slider_lbl.setStyleSheet("color: #334155; font-size: 12px;")
-        p_header.addWidget(slider_lbl)
-
-        from PySide6.QtWidgets import QSlider
-        self.preview_slider = QSlider(Qt.Horizontal)
-        self.preview_slider.setRange(45, 130)
-        self.preview_slider.setValue(55)
-        self.preview_slider.setFixedWidth(110)
-        self.preview_slider.valueChanged.connect(self.on_preview_slider_changed)
-        p_header.addWidget(self.preview_slider)
+        # Semester Filter Combo to prevent cell overcrowding
+        self.semester_combo = QComboBox()
+        self.semester_combo.setStyleSheet("""
+            QComboBox {
+                padding: 6px 14px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 6px;
+                background-color: #f8fafc;
+                color: #0f172a;
+                font-weight: 700;
+                font-size: 12px;
+                min-width: 175px;
+            }
+            QComboBox:hover {
+                border-color: #4f46e5;
+            }
+        """)
+        self.semester_combo.addItem("📚 Todos los Semestres", None)
+        self.semester_combo.addItem("1️⃣ Semestre 1", 1)
+        self.semester_combo.addItem("2️⃣ Semestre 2", 2)
+        self.semester_combo.addItem("3️⃣ Semestre 3", 3)
+        self.semester_combo.addItem("4️⃣ Semestre 4", 4)
+        self.semester_combo.currentIndexChanged.connect(lambda: self.select_solution(self.selected_solution) if self.selected_solution else None)
+        p_header.addWidget(self.semester_combo)
 
         self.preview_modal_btn = QPushButton("🔍 Ver en Pantalla Completa")
         self.preview_modal_btn.setCursor(Qt.PointingHandCursor)
@@ -434,14 +449,6 @@ class SolutionComparisonView(QWidget):
         if self.solutions:
             self.select_solution(self.solutions[0])
 
-    def on_preview_slider_changed(self, value):
-        self.schedule_table.verticalHeader().setDefaultSectionSize(value)
-        font_size = max(10, min(14, int(9 + (value - 45) * 0.06)))
-        font = self.schedule_table.font()
-        font.setPointSize(font_size)
-        self.schedule_table.setFont(font)
-        self.schedule_table.resizeRowsToContents()
-
     def _on_lateral_slider_changed(self, value):
         self.schedule_table.verticalScrollBar().setValue(value)
 
@@ -460,6 +467,9 @@ class SolutionComparisonView(QWidget):
         db = SessionLocal()
         try:
             slots = db.query(TimeSlot).all()
+            groups_map = {g.id: g for g in db.query(Group).all()}
+            teachers_map = {t.id: t.name for t in db.query(Teacher).all()}
+            rooms_map = {r.id: r.name for r in db.query(Room).all()}
         finally:
             db.close()
 
@@ -490,12 +500,22 @@ class SolutionComparisonView(QWidget):
             ShiftType.NIGHT: "#faf5ff"
         }
 
+        selected_sem = self.semester_combo.currentData() if hasattr(self, 'semester_combo') else None
+
         assignments = sol.get("assignments", [])
         for asg in assignments:
             time_slot_id = asg.get("time_slot_id")
             day_val = asg.get("day")
             if hasattr(day_val, "value"):
                 day_val = day_val.value
+
+            group_id = asg.get("group_id")
+            group_obj = groups_map.get(group_id)
+            sem_id = asg.get("semester") or (group_obj.subject.semester_id if group_obj and group_obj.subject else None)
+
+            # Filter by semester if selected
+            if selected_sem is not None and sem_id is not None and sem_id != selected_sem:
+                continue
 
             if time_slot_id in slot_indices and day_val in day_indices:
                 r_idx = slot_indices[time_slot_id]
@@ -504,7 +524,13 @@ class SolutionComparisonView(QWidget):
                 slot_obj = next((sl for sl in sorted_slots if sl.id == time_slot_id), None)
                 bg_color = shift_colors.get(slot_obj.shift, "#ffffff") if slot_obj else "#ffffff"
 
-                text = f"📘 {asg.get('subject_name', '')} ({asg.get('group_name', '')})\n👨‍🏫 {asg.get('teacher_name', '')}\n📍 {asg.get('room_name', '')}"
+                subj_name = asg.get("subject_name") or (group_obj.subject.name if group_obj and group_obj.subject else "")
+                group_name = asg.get("group_name") or (group_obj.name if group_obj else "")
+                teacher_name = asg.get("teacher_name") or teachers_map.get(asg.get("teacher_id"), "")
+                room_name = asg.get("room_name") or rooms_map.get(asg.get("room_id"), "")
+
+                sem_tag = f"Sem {sem_id} • " if sem_id else ""
+                text = f"📘 {subj_name} ({group_name})\n[{sem_tag}{room_name}]\n👨‍🏫 {teacher_name}"
                 
                 curr = self.schedule_table.item(r_idx, c_idx)
                 if curr and curr.text():
@@ -543,7 +569,7 @@ class SolutionComparisonView(QWidget):
 
         reply = QMessageBox.question(
             self, "Confirmar Horario Institucional",
-            f"¿Deseas aplicar '{solution['name']}' como el horario oficial vigente de la universidad?",
+            f"¿Deseas activar '{solution['name']}' como el horario institucional vigente?\n\nEsta acción actualizará la base de datos y todas las pantallas del sistema en vivo.",
             QMessageBox.Yes | QMessageBox.No
         )
 
@@ -563,5 +589,16 @@ class SolutionComparisonView(QWidget):
                 db.commit()
             finally:
                 db.close()
-            QMessageBox.information(self, "Horario Actualizado", f"Se ha activado exitosamente la solución '{solution['name']}'.")
-            self.evaluate_current()
+
+            # Update this solution name as current official
+            solution["name"] = f"Horario Oficial Activo ({solution['name']})"
+            self.preview_title_lbl.setText(f"📅 Matriz Semanal: {solution['name']} (Calidad: {solution['data'].get('global_score', '-') }%)")
+            
+            # Emit signal to reload MainWindow views (ScheduleView, DashboardView)
+            self.solution_applied.emit()
+            self.select_solution(solution)
+
+            QMessageBox.information(
+                self, "Horario Institucional Activado", 
+                f"¡La solución ha sido aplicada con éxito!\n\nEl Horario Institucional y el Dashboard de Monitoreo se han actualizado automáticamente con este horario."
+            )

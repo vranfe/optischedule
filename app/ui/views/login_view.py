@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
     QPushButton, QMessageBox, QFrame, QSpacerItem, QSizePolicy,
-    QGraphicsDropShadowEffect
+    QGraphicsDropShadowEffect, QGridLayout
 )
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor
@@ -19,6 +19,12 @@ class LoginView(QWidget):
         self.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f8fafc, stop:0.5 #f1f5f9, stop:1 #e2e8f0);")
         root_grid = QGridLayout(self)
         root_grid.setContentsMargins(24, 24, 24, 24)
+        root_grid.setRowStretch(0, 1)
+        root_grid.setRowStretch(1, 0)
+        root_grid.setRowStretch(2, 1)
+        root_grid.setColumnStretch(0, 1)
+        root_grid.setColumnStretch(1, 0)
+        root_grid.setColumnStretch(2, 1)
 
         # Centered Formal Login Card
         card = QFrame()
@@ -189,11 +195,10 @@ class LoginView(QWidget):
         sec_notice.setStyleSheet("font-size: 11px; color: #94a3b8; font-weight: 600; margin-top: 4px;")
         card_layout.addWidget(sec_notice)
 
-        # Center card absolutely horizontally and vertically
-        root_grid.addWidget(card, 0, 0, Qt.AlignCenter)
-        root_grid.setRowStretch(0, 1)
+        # Center card absolutely horizontally and vertically in center cell (1, 1)
+        root_grid.addWidget(card, 1, 1, Qt.AlignCenter)
 
-        # Subtle Evaluation Helper Link (in discrete bottom corner)
+        # Subtle Evaluation Helper Link (anclado a esquina inferior derecha en celda 2, 2)
         footer_row = QHBoxLayout()
         footer_row.addStretch()
         helper_btn = QPushButton("ℹ️ Directorio de Cuentas (Entorno Evaluativo)")
@@ -214,8 +219,7 @@ class LoginView(QWidget):
         """)
         helper_btn.clicked.connect(self.open_credentials_dialog)
         footer_row.addWidget(helper_btn)
-        root_grid.addLayout(footer_row, 1, 0, Qt.AlignBottom | Qt.AlignRight)
-        root_grid.setRowStretch(1, 0)
+        root_grid.addLayout(footer_row, 2, 2, Qt.AlignBottom | Qt.AlignRight)
 
     def toggle_password_visibility(self):
         if self.password_input.echoMode() == QLineEdit.Password:
