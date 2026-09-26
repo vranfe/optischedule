@@ -257,7 +257,15 @@ class PreferencesView(QWidget):
             self.bar_card.setEnabled(not is_full_time)
 
             slots = db.query(TimeSlot).all()
-            self.sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+            SHIFT_ORDER = {
+                ShiftType.MORNING: 0,
+                ShiftType.AFTERNOON: 1,
+                ShiftType.NIGHT: 2,
+                "MAÑANA": 0,
+                "TARDE": 1,
+                "NOCHE": 2
+            }
+            self.sorted_slots = sorted(slots, key=lambda s: (SHIFT_ORDER.get(s.shift, 99), s.start_time))
             
             # Formatted labels for vertical header
             slot_headers = [

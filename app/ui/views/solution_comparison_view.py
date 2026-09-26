@@ -198,9 +198,10 @@ class SolutionComparisonView(QWidget):
         self.schedule_table.setColumnCount(len(self.days))
         self.schedule_table.setHorizontalHeaderLabels(self.days)
         self.schedule_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.schedule_table.verticalHeader().setMinimumWidth(180)
-        self.schedule_table.verticalHeader().setDefaultSectionSize(55)
-        self.schedule_table.setMinimumHeight(240)
+        self.schedule_table.verticalHeader().setMinimumWidth(185)
+        self.schedule_table.verticalHeader().setDefaultSectionSize(58)
+        self.schedule_table.setMinimumHeight(400)
+        self.schedule_table.horizontalHeader().setVisible(True)
         self.schedule_table.setStyleSheet("""
             QTableWidget {
                 gridline-color: #cbd5e1;
@@ -490,7 +491,16 @@ class SolutionComparisonView(QWidget):
         if not slots:
             return
 
-        sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+        from app.database.models import ShiftType
+        SHIFT_ORDER = {
+            ShiftType.MORNING: 0,
+            ShiftType.AFTERNOON: 1,
+            ShiftType.NIGHT: 2,
+            "MAÑANA": 0,
+            "TARDE": 1,
+            "NOCHE": 2
+        }
+        sorted_slots = sorted(slots, key=lambda s: (SHIFT_ORDER.get(s.shift, 99), s.start_time))
         slot_map = {
             s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
             for s in sorted_slots

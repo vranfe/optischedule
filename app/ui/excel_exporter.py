@@ -1,4 +1,4 @@
-﻿import os
+import os
 import csv
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
@@ -21,7 +21,18 @@ def export_schedule_dialog(parent, default_filename, table_widget, assignments=N
         if file_path.lower().endswith(".xlsx") or "xlsx" in selected_filter.lower():
             if not file_path.lower().endswith(".xlsx"):
                 file_path += ".xlsx"
-            _export_to_excel(file_path, table_widget, assignments, title)
+            try:
+                _export_to_excel(file_path, table_widget, assignments, title)
+            except ImportError:
+                # If openpyxl is not installed, fallback to CSV with notice
+                csv_path = file_path.rsplit(".", 1)[0] + ".csv"
+                _export_to_csv(csv_path, table_widget, assignments, title)
+                QMessageBox.information(
+                    parent,
+                    "Exportación Realizada (Formato CSV)",
+                    f"El horario se ha exportado con éxito en formato estructurado a:\n\n{csv_path}"
+                )
+                return
         else:
             if not file_path.lower().endswith(".csv"):
                 file_path += ".csv"
@@ -147,29 +158,7 @@ def _export_to_excel(file_path, table_widget, assignments, title):
         alt_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
 
         for row_idx, asg in enumerate(assignments, start=2):
-            if hasattr(asg, "id"):
-                slot = getattr(asg, "time_slot", None)
-                group = getattr(asg, "group", None)
-                subj = group.subject if group else None
-                teacher = getattr(asg, "teacher", None)
-                room = getattr(asg, "room", None)
-                day_val = asg.day.value if hasattr(asg.day, "value") else str(asg.day)
-
-                row_vals = [
-                    asg.id,
-                    day_val,
-                    slot.shift.value if slot and hasattr(slot.shift, "value") else (str(slot.shift) if slot else ""),
-                    slot.start_time.strftime('%H:%M') if slot and slot.start_time else "",
-                    slot.end_time.strftime('%H:%M') if slot and slot.end_time else "",
-                    subj.name if subj else "",
-                    f"Semestre {subj.semester_id}" if subj else "",
-                    group.name if group else "",
-                    teacher.name if teacher else "",
-                    teacher.teacher_type.value if teacher and hasattr(teacher.teacher_type, "value") else "",
-                    room.name if room else "",
-                    room.room_type if room else ""
-                ]
-            elif isinstance(asg, dict):
+            if isinstance(asg, dict):
                 row_vals = [
                     asg.get("id", row_idx - 1),
                     asg.get("day", ""),
@@ -185,7 +174,41 @@ def _export_to_excel(file_path, table_widget, assignments, title):
                     asg.get("room_type", "")
                 ]
             else:
-                continue
+                try:
+                    slot = getattr(asg, "time_slot", None)
+                    group = getattr(asg, "group", None)
+                    subj = getattr(group, "subject", None) if group else None
+                    teacher = getattr(asg, "teacher", None)
+                    room = getattr(asg, "room", None)
+                    day_val = asg.day.value if hasattr(getattr(asg, "day", None), "value") else str(getattr(asg, "day", ""))
+
+                    shift_val = slot.shift.value if slot and hasattr(getattr(slot, "shift", None), "value") else (str(getattr(slot, "shift", "")) if slot else "")
+                    start_t = slot.start_time.strftime('%H:%M') if slot and getattr(slot, "start_time", None) else ""
+                    end_t = slot.end_time.strftime('%H:%M') if slot and getattr(slot, "end_time", None) else ""
+                    subj_name = getattr(subj, "name", "") if subj else ""
+                    sem_str = f"Semestre {getattr(subj, 'semester_id', '')}" if subj and getattr(subj, 'semester_id', None) is not None else ""
+                    group_name = getattr(group, "name", "") if group else ""
+                    teacher_name = getattr(teacher, "name", "") if teacher else ""
+                    t_type = teacher.teacher_type.value if teacher and hasattr(getattr(teacher, "teacher_type", None), "value") else (str(getattr(teacher, "teacher_type", "")) if teacher else "")
+                    room_name = getattr(room, "name", "") if room else ""
+                    room_type = getattr(room, "room_type", "") if room else ""
+
+                    row_vals = [
+                        getattr(asg, "id", row_idx - 1),
+                        day_val,
+                        shift_val,
+                        start_t,
+                        end_t,
+                        subj_name,
+                        sem_str,
+                        group_name,
+                        teacher_name,
+                        t_type,
+                        room_name,
+                        room_type
+                    ]
+                except Exception:
+                    row_vals = [getattr(asg, "id", row_idx - 1), "", "", "", "", "", "", "", "", "", "", ""]
 
             is_even = (row_idx % 2 == 0)
             r_fill = alt_fill if is_even else default_fill
@@ -227,24 +250,43 @@ def _export_to_csv(file_path, table_widget, assignments, title):
             writer.writerow(["=== DETALLE INDIVIDUAL DE ASIGNACIONES ==="])
             writer.writerow(["ID", "Día", "Jornada", "Hora Inicio", "Hora Fin", "Asignatura", "Semestre", "Grupo", "Docente", "Tipo Contrato", "Aula", "Tipo Aula"])
             for idx, asg in enumerate(assignments, start=1):
-                if hasattr(asg, "id"):
-                    slot = getattr(asg, "time_slot", None)
-                    group = getattr(asg, "group", None)
-                    subj = group.subject if group else None
-                    teacher = getattr(asg, "teacher", None)
-                    room = getattr(asg, "room", None)
-                    day_val = asg.day.value if hasattr(asg.day, "value") else str(asg.day)
+                if isinstance(asg, dict):
                     writer.writerow([
-                        asg.id,
-                        day_val,
-                        slot.shift.value if slot and hasattr(slot.shift, "value") else "",
-                        slot.start_time.strftime('%H:%M') if slot and slot.start_time else "",
-                        slot.end_time.strftime('%H:%M') if slot and slot.end_time else "",
-                        subj.name if subj else "",
-                        subj.semester_id if subj else "",
-                        group.name if group else "",
-                        teacher.name if teacher else "",
-                        teacher.teacher_type.value if teacher and hasattr(teacher.teacher_type, "value") else "",
-                        room.name if room else "",
-                        room.room_type if room else ""
+                        asg.get("id", idx),
+                        asg.get("day", ""),
+                        asg.get("shift", ""),
+                        asg.get("start_time", ""),
+                        asg.get("end_time", ""),
+                        asg.get("subject_name", ""),
+                        asg.get("semester", ""),
+                        asg.get("group_name", ""),
+                        asg.get("teacher_name", ""),
+                        asg.get("teacher_type", ""),
+                        asg.get("room_name", ""),
+                        asg.get("room_type", "")
                     ])
+                else:
+                    try:
+                        slot = getattr(asg, "time_slot", None)
+                        group = getattr(asg, "group", None)
+                        subj = getattr(group, "subject", None) if group else None
+                        teacher = getattr(asg, "teacher", None)
+                        room = getattr(asg, "room", None)
+                        day_val = asg.day.value if hasattr(getattr(asg, "day", None), "value") else str(getattr(asg, "day", ""))
+                        writer.writerow([
+                            getattr(asg, "id", idx),
+                            day_val,
+                            slot.shift.value if slot and hasattr(getattr(slot, "shift", None), "value") else (str(getattr(slot, "shift", "")) if slot else ""),
+                            slot.start_time.strftime('%H:%M') if slot and getattr(slot, "start_time", None) else "",
+                            slot.end_time.strftime('%H:%M') if slot and getattr(slot, "end_time", None) else "",
+                            getattr(subj, "name", "") if subj else "",
+                            getattr(subj, "semester_id", "") if subj else "",
+                            getattr(group, "name", "") if group else "",
+                            getattr(teacher, "name", "") if teacher else "",
+                            teacher.teacher_type.value if teacher and hasattr(getattr(teacher, "teacher_type", None), "value") else "",
+                            getattr(room, "name", "") if room else "",
+                            getattr(room, "room_type", "") if room else ""
+                        ])
+                    except Exception:
+                        writer.writerow([getattr(asg, "id", idx), "", "", "", "", "", "", "", "", "", "", ""])
+

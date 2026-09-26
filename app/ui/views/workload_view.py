@@ -63,8 +63,10 @@ class WorkloadView(QWidget):
 
         layout.addLayout(self.kpi_layout)
 
-        # Controls row: Filter by load state
-        filter_row = QHBoxLayout()
+        # Controls row: Filter by load state (Admin only)
+        self.filter_container = QWidget()
+        filter_row = QHBoxLayout(self.filter_container)
+        filter_row.setContentsMargins(0, 0, 0, 0)
         filter_row.addWidget(QLabel("<b>Filtrar por Estado de Carga:</b>"))
         
         self.filter_combo = QComboBox()
@@ -79,13 +81,14 @@ class WorkloadView(QWidget):
         filter_row.addWidget(self.filter_combo)
         filter_row.addStretch()
 
-        layout.addLayout(filter_row)
+        layout.addWidget(self.filter_container)
 
         # Table
         self.table = QTableWidget()
         self.headers = ["ID", "Docente", "Tipo Contrato", "Horas Asignadas", "Tope Horas", "Ocupación (%)", "Estado de Carga Laboral", "Acción Recomendada"]
         self.table.setColumnCount(len(self.headers))
         self.table.setHorizontalHeaderLabels(self.headers)
+        self.table.horizontalHeader().setVisible(True)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.table.setStyleSheet("""
@@ -130,7 +133,7 @@ class WorkloadView(QWidget):
         l.addWidget(v_lbl)
         l.addWidget(h_lbl)
         self.kpi_layout.addWidget(frame)
-        return v_lbl
+        return (t_lbl, v_lbl, h_lbl)
 
     def load_data(self):
         db = next(get_db())
@@ -141,7 +144,10 @@ class WorkloadView(QWidget):
         part_time_max = config.part_time_hours if config else 21
         catedra_max = config.catedra_hours if config else 23
 
-        if session.teacher_id:
+        is_teacher_role = bool(session.teacher_id)
+        self.filter_container.setVisible(not is_teacher_role)
+
+        if is_teacher_role:
             teachers = [t for t in teachers if t.id == session.teacher_id]
 
         self.raw_teacher_data = []
@@ -181,7 +187,7 @@ class WorkloadView(QWidget):
             self.raw_teacher_data.append({
                 "id": teacher.id,
                 "name": teacher.name,
-                "type": teacher.teacher_type.value,
+                "type": teacher.teacher_type.value if hasattr(teacher.teacher_type, "value") else str(teacher.teacher_type),
                 "assigned": assigned_hours,
                 "max": max_hours,
                 "pct": pct,
@@ -190,10 +196,39 @@ class WorkloadView(QWidget):
                 "action_text": action_text
             })
 
-        self.total_teachers_lbl.setText(str(len(teachers)))
-        self.optimal_lbl.setText(str(optimal_count))
-        self.underload_lbl.setText(str(underload_count))
-        self.overload_lbl.setText(str(overload_count))
+        if is_teacher_role and self.raw_teacher_data:
+            d = self.raw_teacher_data[0]
+            self.total_teachers_lbl[0].setText("Horas Asignadas")
+            self.total_teachers_lbl[1].setText(f"{d['assigned']} hrs")
+            self.total_teachers_lbl[2].setText("Total semanal asignado")
+
+            self.optimal_lbl[0].setText("Tope Contractual")
+            self.optimal_lbl[1].setText(f"{d['max']} hrs")
+            self.optimal_lbl[2].setText(f"Modalidad: {d['type']}")
+
+            self.underload_lbl[0].setText("% Cumplimiento")
+            self.underload_lbl[1].setText(f"{d['pct']}%")
+            self.underload_lbl[2].setText("Ocupación de carga")
+
+            self.overload_lbl[0].setText("Estado de Carga")
+            self.overload_lbl[1].setText(d['state_type'])
+            self.overload_lbl[2].setText(d['state_text'])
+        else:
+            self.total_teachers_lbl[0].setText("Total Docentes")
+            self.total_teachers_lbl[1].setText(str(len(teachers)))
+            self.total_teachers_lbl[2].setText("Plantilla docente")
+
+            self.optimal_lbl[0].setText("Carga Óptima (80-100%)")
+            self.optimal_lbl[1].setText(str(optimal_count))
+            self.optimal_lbl[2].setText("Eficiencia de nómina")
+
+            self.underload_lbl[0].setText("Subcarga (<80%)")
+            self.underload_lbl[1].setText(str(underload_count))
+            self.underload_lbl[2].setText("Horas ociosas a optimizar")
+
+            self.overload_lbl[0].setText("Sobrecarga (>100%)")
+            self.overload_lbl[1].setText(str(overload_count))
+            self.overload_lbl[2].setText("Riesgo de exceso laboral")
 
         self.apply_filter()
 

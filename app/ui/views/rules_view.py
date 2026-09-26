@@ -13,14 +13,9 @@ class RulesView(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
-
-        container = QWidget()
-        main_layout = QVBoxLayout(container)
+        main_layout = QVBoxLayout(self)
         main_layout.setSpacing(18)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setContentsMargins(15, 15, 15, 25)
 
         # Header Card
         header_card = QFrame()
@@ -341,11 +336,7 @@ class RulesView(QWidget):
 
         s_card_layout.addLayout(weights_grid)
         main_layout.addWidget(soft_card)
-
-        scroll.setWidget(container)
-        outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.addWidget(scroll)
+        main_layout.addSpacing(30)
 
         self.load_config()
 

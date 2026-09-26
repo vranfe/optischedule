@@ -86,6 +86,9 @@ class GenericTableView(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
+        self.table.horizontalHeader().setVisible(True)
+        self.table.horizontalHeader().setFixedHeight(42)
+        self.table.horizontalHeader().setHighlightSections(False)
         self.table.setVerticalScrollMode(QTableWidget.ScrollPerPixel)
         self.table.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
         self.table.verticalScrollBar().setSingleStep(12)
@@ -109,17 +112,30 @@ class GenericTableView(QWidget):
                 border-radius: 8px;
             }
             QHeaderView::section {
-                background-color: #1e293b;
-                color: #ffffff;
-                padding: 9px 12px;
-                font-weight: 800;
-                font-size: 12px;
+                background-color: #f1f5f9;
+                color: #000000;
+                padding: 10px 14px;
+                font-weight: 900;
+                font-size: 13px;
                 border: none;
-                border-right: 1px solid #334155;
+                border-right: 1.5px solid #cbd5e1;
+                border-bottom: 2.5px solid #4f46e5;
             }
             QTableWidget::item:selected {
                 background-color: #e0e7ff;
                 color: #1e3a8a;
+            }
+        """)
+        self.table.horizontalHeader().setStyleSheet("""
+            QHeaderView::section {
+                background-color: #f1f5f9;
+                color: #000000;
+                padding: 10px 14px;
+                font-weight: 900;
+                font-size: 13px;
+                border: none;
+                border-right: 1.5px solid #cbd5e1;
+                border-bottom: 2.5px solid #4f46e5;
             }
         """)
         self.table.itemChanged.connect(self.on_cell_edited)
@@ -129,6 +145,8 @@ class GenericTableView(QWidget):
         
     def load_data(self):
         self.is_loading = True
+        self.table.setHorizontalHeaderLabels(self.headers)
+        self.table.horizontalHeader().setVisible(True)
         db = next(get_db())
         try:
             records = db.query(self.model_class).all()

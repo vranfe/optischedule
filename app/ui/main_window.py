@@ -375,16 +375,13 @@ class MainWindow(QMainWindow):
 
             for title, widget in views:
                 self.menu_list.addItem(title)
-                # Wrap extensive pages in fluid QScrollArea to prevent clipping on smaller resolutions
-                if isinstance(widget, (DashboardView, WorkloadView, RulesView, PreferencesView, ResultsView)):
-                    scroll = QScrollArea()
-                    scroll.setWidgetResizable(True)
-                    scroll.setFrameShape(QFrame.NoFrame)
-                    scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-                    scroll.setWidget(widget)
-                    self.content_stack.addWidget(scroll)
-                else:
-                    self.content_stack.addWidget(widget)
+                # Wrap all pages in fluid QScrollArea to guarantee no content clipping across any screen resolution
+                scroll = QScrollArea()
+                scroll.setWidgetResizable(True)
+                scroll.setFrameShape(QFrame.NoFrame)
+                scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+                scroll.setWidget(widget)
+                self.content_stack.addWidget(scroll)
 
             if views:
                 self.menu_list.setCurrentRow(0)

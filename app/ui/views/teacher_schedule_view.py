@@ -7,7 +7,7 @@ from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt
 import csv
 from app.database.database import SessionLocal
-from app.database.models import Teacher, ScheduleAssignment, TimeSlot, DayOfWeek
+from app.database.models import Teacher, ScheduleAssignment, TimeSlot, DayOfWeek, ShiftType
 from app.auth.session import session
 from app.ui.excel_exporter import export_schedule_dialog
 
@@ -252,8 +252,17 @@ class TeacherScheduleView(QWidget):
             f"👤 Docente: {teacher.name} | 📜 Contrato: {teacher.teacher_type.value} | ⏱️ Total Horas Asignadas: {total_hours} hrs/semana"
         )
 
-        slot_map = {s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" for s in slots}
-        sorted_slot_ids = sorted(slot_map.keys(), key=lambda sid: slot_map[sid])
+        SHIFT_ORDER = {
+            ShiftType.MORNING: 0,
+            ShiftType.AFTERNOON: 1,
+            ShiftType.NIGHT: 2,
+            "MAÑANA": 0,
+            "TARDE": 1,
+            "NOCHE": 2
+        }
+        sorted_slots = sorted(slots, key=lambda s: (SHIFT_ORDER.get(s.shift, 99), s.start_time))
+        slot_map = {s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" for s in sorted_slots}
+        sorted_slot_ids = [s.id for s in sorted_slots]
 
         self.table.setRowCount(len(sorted_slot_ids))
         self.table.setVerticalHeaderLabels([slot_map[sid] for sid in sorted_slot_ids])
@@ -339,6 +348,7 @@ class TeacherScheduleView(QWidget):
                 QMessageBox.warning(self, "Exportación", "No tienes clases asignadas en el horario institucional.")
                 return
 
+            teacher_name = teacher.name if teacher else "Docente"
             assignments = list(teacher.assignments)
             for asg in assignments:
                 _ = asg.time_slot

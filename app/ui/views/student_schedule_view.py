@@ -650,6 +650,16 @@ class StudentScheduleView(QWidget):
                 self.subj_checkboxes_layout.addWidget(card_frame)
                 self.subject_checkboxes[subj.id] = cb
 
+            # Auto-load saved shift preference from student preferences
+            pref = db.query(StudentPreference).filter_by(student_id=student_id, priority=1).first()
+            if pref:
+                if pref.shift == ShiftType.MORNING:
+                    self.rb_morning.setChecked(True)
+                elif pref.shift == ShiftType.AFTERNOON:
+                    self.rb_afternoon.setChecked(True)
+                elif pref.shift == ShiftType.NIGHT:
+                    self.rb_night.setChecked(True)
+
             self.update_subject_count()
             self.load_official_schedule()
         finally:
@@ -786,7 +796,15 @@ class StudentScheduleView(QWidget):
         db = SessionLocal()
         try:
             slots = db.query(TimeSlot).all()
-            sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+            SHIFT_ORDER = {
+                ShiftType.MORNING: 0,
+                ShiftType.AFTERNOON: 1,
+                ShiftType.NIGHT: 2,
+                "MAÑANA": 0,
+                "TARDE": 1,
+                "NOCHE": 2
+            }
+            sorted_slots = sorted(slots, key=lambda s: (SHIFT_ORDER.get(s.shift, 99), s.start_time))
             slot_map = {
                 s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
                 for s in sorted_slots
@@ -902,7 +920,15 @@ class StudentScheduleView(QWidget):
             enrollments = db.query(StudentEnrollment).filter_by(student_id=student_id).all()
 
             slots = db.query(TimeSlot).all()
-            sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+            SHIFT_ORDER = {
+                ShiftType.MORNING: 0,
+                ShiftType.AFTERNOON: 1,
+                ShiftType.NIGHT: 2,
+                "MAÑANA": 0,
+                "TARDE": 1,
+                "NOCHE": 2
+            }
+            sorted_slots = sorted(slots, key=lambda s: (SHIFT_ORDER.get(s.shift, 99), s.start_time))
             slot_map = {
                 s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
                 for s in sorted_slots
@@ -957,7 +983,30 @@ class StudentScheduleView(QWidget):
             student_name = student.name if student else "Estudiante"
             enrollments = db.query(StudentEnrollment).filter_by(student_id=student_id).all()
             enrolled_group_ids = {e.group_id for e in enrollments}
-            assignments = db.query(ScheduleAssignment).filter(ScheduleAssignment.group_id.in_(enrolled_group_ids)).all()
+            raw_asg = db.query(ScheduleAssignment).filter(ScheduleAssignment.group_id.in_(enrolled_group_ids)).all()
+
+            assignments = []
+            for asg in raw_asg:
+                slot = asg.time_slot
+                group = asg.group
+                subj = group.subject if group else None
+                teacher = asg.teacher
+                room = asg.room
+                day_val = asg.day.value if hasattr(asg.day, "value") else str(asg.day)
+                assignments.append({
+                    "id": asg.id,
+                    "day": day_val,
+                    "shift": slot.shift.value if slot and hasattr(slot.shift, "value") else (str(slot.shift) if slot else ""),
+                    "start_time": slot.start_time.strftime('%H:%M') if slot and slot.start_time else "",
+                    "end_time": slot.end_time.strftime('%H:%M') if slot and slot.end_time else "",
+                    "subject_name": subj.name if subj else "",
+                    "semester": f"Semestre {subj.semester_id}" if subj else "",
+                    "group_name": group.name if group else "",
+                    "teacher_name": teacher.name if teacher else "",
+                    "teacher_type": teacher.teacher_type.value if teacher and hasattr(teacher.teacher_type, "value") else "",
+                    "room_name": room.name if room else "",
+                    "room_type": room.room_type if room else ""
+                })
 
             clean_name = student_name.replace(" ", "_")
             export_schedule_dialog(

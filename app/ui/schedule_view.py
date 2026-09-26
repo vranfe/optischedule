@@ -317,7 +317,15 @@ class ScheduleView(QWidget):
         if not slots:
             return
             
-        sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+        SHIFT_ORDER = {
+            ShiftType.MORNING: 0,
+            ShiftType.AFTERNOON: 1,
+            ShiftType.NIGHT: 2,
+            "MAÑANA": 0,
+            "TARDE": 1,
+            "NOCHE": 2
+        }
+        sorted_slots = sorted(slots, key=lambda s: (SHIFT_ORDER.get(s.shift, 99), s.start_time))
         slot_map = {
             s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
             for s in sorted_slots
@@ -376,12 +384,29 @@ class ScheduleView(QWidget):
     def export_csv(self):
         db = SessionLocal()
         try:
-            assignments = db.query(ScheduleAssignment).all()
-            for asg in assignments:
-                _ = asg.time_slot
-                _ = asg.group.subject if asg.group else None
-                _ = asg.teacher
-                _ = asg.room
+            raw_assignments = db.query(ScheduleAssignment).all()
+            assignments = []
+            for asg in raw_assignments:
+                slot = asg.time_slot
+                group = asg.group
+                subj = group.subject if group else None
+                teacher = asg.teacher
+                room = asg.room
+                day_val = asg.day.value if hasattr(asg.day, "value") else str(asg.day)
+                assignments.append({
+                    "id": asg.id,
+                    "day": day_val,
+                    "shift": slot.shift.value if slot and hasattr(slot.shift, "value") else (str(slot.shift) if slot else ""),
+                    "start_time": slot.start_time.strftime('%H:%M') if slot and slot.start_time else "",
+                    "end_time": slot.end_time.strftime('%H:%M') if slot and slot.end_time else "",
+                    "subject_name": subj.name if subj else "",
+                    "semester": f"Semestre {subj.semester_id}" if subj else "",
+                    "group_name": group.name if group else "",
+                    "teacher_name": teacher.name if teacher else "",
+                    "teacher_type": teacher.teacher_type.value if teacher and hasattr(teacher.teacher_type, "value") else "",
+                    "room_name": room.name if room else "",
+                    "room_type": room.room_type if room else ""
+                })
         finally:
             db.close()
 

@@ -290,7 +290,15 @@ class SchedulePreviewDialog(QDialog):
         if not slots:
             return
 
-        sorted_slots = sorted(slots, key=lambda s: (s.shift.value, s.start_time))
+        SHIFT_ORDER = {
+            ShiftType.MORNING: 0,
+            ShiftType.AFTERNOON: 1,
+            ShiftType.NIGHT: 2,
+            "MAÑANA": 0,
+            "TARDE": 1,
+            "NOCHE": 2
+        }
+        sorted_slots = sorted(slots, key=lambda s: (SHIFT_ORDER.get(s.shift, 99), s.start_time))
         slot_map = {
             s.id: f"{s.shift.value}\n{s.start_time.strftime('%H:%M')} - {s.end_time.strftime('%H:%M')}" 
             for s in sorted_slots
