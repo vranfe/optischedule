@@ -68,6 +68,8 @@ class ScheduleSolver:
             valid_rooms = [r for r in self.rooms if r.capacity >= g.expected_students]
             if not valid_rooms:
                 valid_rooms = self.rooms # Fallback
+            else:
+                valid_rooms = sorted(valid_rooms, key=lambda r: r.capacity)[:3]
             candidate_teachers = self.subject_teachers.get(g.subject_id, self.teachers)
             cohort = g.name.split("-")[0] if "-" in g.name else "G1"
             sem_id = g.subject.semester_id if g.subject else 1

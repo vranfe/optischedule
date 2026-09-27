@@ -96,12 +96,21 @@ class WorkloadView(QWidget):
                 gridline-color: #cbd5e1;
                 background-color: #ffffff;
                 color: #0f172a;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 8px;
+            }
+            QHeaderView {
+                background-color: #1e293b;
             }
             QHeaderView::section {
                 background-color: #1e293b;
                 color: #ffffff;
-                padding: 8px;
-                font-weight: bold;
+                padding: 8px 12px;
+                font-weight: 800;
+                font-size: 12px;
+                border: none;
+                border-right: 1px solid #334155;
+                border-bottom: 2px solid #4f46e5;
             }
         """)
         layout.addWidget(self.table)
@@ -291,25 +300,28 @@ class WorkloadView(QWidget):
         self.balance_btn.setEnabled(True)
         self.balance_btn.setText("⚡ Optimizar Balance (Reducir Subcarga)")
 
-        if result["status"] == "SUCCESS":
-            db = next(get_db())
-            from app.database.models import DayOfWeek
-            db.query(ScheduleAssignment).delete()
-            for asg in result["assignments"]:
-                assignment = ScheduleAssignment(
-                    group_id=asg["group_id"],
-                    teacher_id=asg["teacher_id"],
-                    room_id=asg["room_id"],
-                    day=DayOfWeek(asg["day"]) if isinstance(asg["day"], str) else asg["day"],
-                    time_slot_id=asg["time_slot_id"]
-                )
-                db.add(assignment)
-            db.commit()
+        if result.get("status") == "SUCCESS":
+            db = SessionLocal()
+            try:
+                from app.database.models import DayOfWeek
+                db.query(ScheduleAssignment).delete()
+                for asg in result["assignments"]:
+                    assignment = ScheduleAssignment(
+                        group_id=asg["group_id"],
+                        teacher_id=asg["teacher_id"],
+                        room_id=asg["room_id"],
+                        day=DayOfWeek(asg["day"]) if isinstance(asg["day"], str) else asg["day"],
+                        time_slot_id=asg["time_slot_id"]
+                    )
+                    db.add(assignment)
+                db.commit()
+            finally:
+                db.close()
 
             QMessageBox.information(self, "Balance Completado", "El horario ha sido reoptimizado con enfoque en reducción de subcarga docente.")
             self.load_data()
         else:
-            QMessageBox.warning(self, "Aviso", result["msg"])
+            QMessageBox.warning(self, "Aviso", result.get("msg", "No se encontró solución factible."))
 
     def on_balance_error(self, err):
         self.balance_btn.setEnabled(True)

@@ -425,11 +425,11 @@ class SolutionComparisonView(QWidget):
             btn_row = QHBoxLayout()
             btn_row.setSpacing(6)
 
-            # Preview button that selects and loads in live grid + modal
+            # Preview button that selects and loads in live grid + opens full modal
             btn_view = QPushButton("🔍 Ver Horario")
             btn_view.setCursor(Qt.PointingHandCursor)
             btn_view.setStyleSheet("background-color: #0284c7; color: white; padding: 6px 10px; border-radius: 6px; font-weight: bold; font-size: 11px;")
-            btn_view.clicked.connect(lambda _, s=sol: self.select_solution(s))
+            btn_view.clicked.connect(lambda _, s=sol: self._view_solution(s))
             btn_row.addWidget(btn_view)
 
             if sol.get("assignments"):
@@ -457,6 +457,10 @@ class SolutionComparisonView(QWidget):
 
         if self.solutions:
             self.select_solution(self.solutions[0])
+
+    def _view_solution(self, sol):
+        self.select_solution(sol)
+        self.preview_solution_modal(sol)
 
     def _on_lateral_slider_changed(self, value):
         self.schedule_table.verticalScrollBar().setValue(value)

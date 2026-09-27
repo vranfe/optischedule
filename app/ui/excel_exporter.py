@@ -1,11 +1,20 @@
 import os
+import re
 import csv
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
+def sanitize_filename(name):
+    """Sanitize filename to be safe across Windows and POSIX filesystems."""
+    # Remove characters illegal on Windows: < > : " / \ | ? *
+    name = re.sub(r'[<>:"/\\|?*]', '_', str(name))
+    # Keep printable non-control chars and strip whitespace/dots
+    name = "".join(c for c in name if c.isprintable()).strip(". ")
+    return name or "Horario_UMB"
+
 def export_schedule_dialog(parent, default_filename, table_widget, assignments=None, title="Horario Institucional UMB"):
-    if not default_filename.endswith(".xlsx"):
-        base_name = os.path.splitext(default_filename)[0]
-        default_filename = f"{base_name}.xlsx"
+    base_name = os.path.splitext(default_filename)[0]
+    safe_base = sanitize_filename(base_name)
+    default_filename = f"{safe_base}.xlsx"
 
     file_path, selected_filter = QFileDialog.getSaveFileName(
         parent,
@@ -23,14 +32,14 @@ def export_schedule_dialog(parent, default_filename, table_widget, assignments=N
                 file_path += ".xlsx"
             try:
                 _export_to_excel(file_path, table_widget, assignments, title)
-            except ImportError:
-                # If openpyxl is not installed, fallback to CSV with notice
+            except Exception as ex_excel:
+                # If Excel creation fails for any reason (e.g. missing submodule), fallback to CSV
                 csv_path = file_path.rsplit(".", 1)[0] + ".csv"
                 _export_to_csv(csv_path, table_widget, assignments, title)
                 QMessageBox.information(
                     parent,
                     "Exportación Realizada (Formato CSV)",
-                    f"El horario se ha exportado con éxito en formato estructurado a:\n\n{csv_path}"
+                    f"El horario se ha exportado con éxito en formato estructurado a:\n\n{csv_path}\n\n(Nota: Se usó formato CSV compatible con Excel: {ex_excel})"
                 )
                 return
         else:

@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, 
     QTableWidgetItem, QHeaderView, QPushButton, QFrame, QFileDialog, 
-    QMessageBox, QSlider, QScrollArea
+    QMessageBox, QSlider, QScrollArea, QComboBox
 )
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt
@@ -89,11 +89,41 @@ class SchedulePreviewDialog(QDialog):
 
         layout.addWidget(header_card)
 
-        # Controls Bar (Pills Legend)
+        # Controls Bar (Filter + Shift Legend Pills)
         controls_bar = QFrame()
         controls_bar.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 14px;")
         c_layout = QHBoxLayout(controls_bar)
-        c_layout.setSpacing(12)
+        c_layout.setSpacing(10)
+
+        # Semester Filter Combo (Active for institutional / comparison views)
+        self.semester_combo = QComboBox()
+        self.semester_combo.setStyleSheet("""
+            QComboBox {
+                padding: 6px 14px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 6px;
+                background-color: #ffffff;
+                color: #0f172a;
+                font-weight: 700;
+                font-size: 12px;
+                min-width: 170px;
+            }
+            QComboBox:hover {
+                border-color: #4f46e5;
+            }
+        """)
+        self.semester_combo.addItem("📚 Todos los Semestres", None)
+        self.semester_combo.addItem("1️⃣ Semestre 1", 1)
+        self.semester_combo.addItem("2️⃣ Semestre 2", 2)
+        self.semester_combo.addItem("3️⃣ Semestre 3", 3)
+        self.semester_combo.addItem("4️⃣ Semestre 4", 4)
+        self.semester_combo.currentIndexChanged.connect(self.populate_grid)
+        
+        # Only show filter if not a single teacher or single student schedule
+        if "Docente:" in self.title_text or self.groups_data:
+            self.semester_combo.setVisible(False)
+        else:
+            c_layout.addWidget(self.semester_combo)
 
         # Shift Legend Pills
         c_layout.addWidget(self._create_legend_dot("☀️ Mañana (8-12)", "#0284c7", "#e0f2fe"))
@@ -101,7 +131,7 @@ class SchedulePreviewDialog(QDialog):
         c_layout.addWidget(self._create_legend_dot("🌙 Noche (18-22)", "#7c3aed", "#ede9fe"))
         c_layout.addStretch()
 
-        nav_hint = QLabel("💡 <i>Usa el slider lateral o la rueda del ratón para navegar fluidamente por las jornadas</i>")
+        nav_hint = QLabel("💡 <i>Navega por las jornadas horarias con el slider lateral</i>")
         nav_hint.setStyleSheet("font-size: 11px; color: #64748b;")
         c_layout.addWidget(nav_hint)
 
@@ -115,8 +145,8 @@ class SchedulePreviewDialog(QDialog):
         self.table.setColumnCount(len(self.days))
         self.table.setHorizontalHeaderLabels(self.days)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.verticalHeader().setMinimumWidth(200)
-        self.table.verticalHeader().setDefaultSectionSize(self.base_row_height)
+        self.table.verticalHeader().setMinimumWidth(185)
+        self.table.verticalHeader().setDefaultSectionSize(75)
         self.table.setStyleSheet("""
             QTableWidget {
                 background-color: #ffffff;
@@ -125,6 +155,9 @@ class SchedulePreviewDialog(QDialog):
                 border: 1.5px solid #cbd5e1;
                 border-radius: 10px;
                 font-size: 12px;
+            }
+            QHeaderView {
+                background-color: #1e293b;
             }
             QHeaderView::section {
                 background-color: #1e293b;
@@ -328,12 +361,17 @@ class SchedulePreviewDialog(QDialog):
                 g_info = item[2] if isinstance(item, (list, tuple)) and len(item) == 3 else item
                 if isinstance(g_info, dict) and "slots" in g_info:
                     for s in g_info["slots"]:
-                        if s["time_slot_id"] in slot_indices and s["day"] in day_indices:
-                            r_idx = slot_indices[s["time_slot_id"]]
-                            c_idx = day_indices[s["day"]]
+                        slot_id = s.get("time_slot_id")
+                        day_val = s.get("day")
+                        if hasattr(day_val, "value"):
+                            day_val = day_val.value
+
+                        if slot_id in slot_indices and day_val in day_indices:
+                            r_idx = slot_indices[slot_id]
+                            c_idx = day_indices[day_val]
 
                             # Determine slot shift
-                            slot_obj = next((sl for sl in sorted_slots if sl.id == s["time_slot_id"]), None)
+                            slot_obj = next((sl for sl in sorted_slots if sl.id == slot_id), None)
                             shift_theme = shift_colors.get(slot_obj.shift, {"bg": "#f8fafc", "text": "#0f172a"}) if slot_obj else {"bg": "#f8fafc", "text": "#0f172a"}
 
                             text = (
@@ -351,13 +389,28 @@ class SchedulePreviewDialog(QDialog):
                             cell_item.setFont(font)
                             self.table.setItem(r_idx, c_idx, cell_item)
 
-        # If institutional assignments format
+        # If institutional / teacher assignments format
         elif self.assignments_data:
+            selected_sem = self.semester_combo.currentData() if (hasattr(self, 'semester_combo') and self.semester_combo.isVisible()) else None
+            
             for asg in self.assignments_data:
                 time_slot_id = asg.get("time_slot_id")
                 day_val = asg.get("day")
                 if hasattr(day_val, "value"):
                     day_val = day_val.value
+
+                # If time_slot_id is missing, find matching slot by start_time / shift
+                if time_slot_id is None and "start_time" in asg:
+                    for sl in sorted_slots:
+                        if sl.start_time.strftime('%H:%M') == asg.get("start_time"):
+                            time_slot_id = sl.id
+                            break
+
+                # Semester filter check
+                group_id = asg.get("group_id")
+                g_sem = asg.get("semester") or groups_dict.get(group_id, {}).get("semester_id")
+                if selected_sem is not None and g_sem is not None and g_sem != selected_sem:
+                    continue
 
                 if time_slot_id in slot_indices and day_val in day_indices:
                     r_idx = slot_indices[time_slot_id]
@@ -366,15 +419,16 @@ class SchedulePreviewDialog(QDialog):
                     slot_obj = next((sl for sl in sorted_slots if sl.id == time_slot_id), None)
                     shift_theme = shift_colors.get(slot_obj.shift, {"bg": "#f8fafc", "text": "#0f172a"}) if slot_obj else {"bg": "#f8fafc", "text": "#0f172a"}
 
-                    subj_name = asg.get('subject_name') or groups_dict.get(asg.get('group_id'), {}).get('subject_name', '')
-                    group_name = asg.get('group_name') or groups_dict.get(asg.get('group_id'), {}).get('name', '')
+                    subj_name = asg.get('subject_name') or groups_dict.get(group_id, {}).get('subject_name', '')
+                    group_name = asg.get('group_name') or groups_dict.get(group_id, {}).get('name', '')
                     teacher_name = asg.get('teacher_name') or teachers_map.get(asg.get('teacher_id'), '')
                     room_name = asg.get('room_name') or rooms_map.get(asg.get('room_id'), '')
 
+                    sem_tag = f"Sem {g_sem} • " if g_sem else ""
                     text = (
                         f"📘 {subj_name} ({group_name})\n"
-                        f"👨‍🏫 {teacher_name}\n"
-                        f"📍 {room_name}"
+                        f"[{sem_tag}{room_name}]\n"
+                        f"👨‍🏫 {teacher_name}"
                     )
                     curr = self.table.item(r_idx, c_idx)
                     if curr and curr.text():
@@ -389,8 +443,17 @@ class SchedulePreviewDialog(QDialog):
                         cell_item.setFont(font)
                         self.table.setItem(r_idx, c_idx, cell_item)
 
-
-        self.table.resizeRowsToContents()
+        # Balanced row heights: prevent extreme stretching while keeping all shifts visible
+        for r in range(self.table.rowCount()):
+            max_lines = 1
+            for c in range(self.table.columnCount()):
+                item = self.table.item(r, c)
+                if item and item.text():
+                    lines = item.text().count('\n') + 1
+                    if lines > max_lines:
+                        max_lines = lines
+            calc_height = min(max(70, max_lines * 20), 160)
+            self.table.setRowHeight(r, calc_height)
 
     def _handle_confirm(self):
         if self.on_confirm_callback:

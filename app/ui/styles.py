@@ -319,15 +319,30 @@ QTableWidget::item:selected {
     font-weight: 600;
 }
 
+QHeaderView {
+    background-color: #1e293b;
+}
+
 QHeaderView::section {
-    background-color: #f1f5f9;
-    color: #000000;
-    padding: 10px 14px;
-    font-weight: 900;
-    font-size: 13px;
+    background-color: #1e293b;
+    color: #ffffff;
+    padding: 8px 12px;
+    font-weight: 800;
+    font-size: 12px;
     border: none;
-    border-right: 1.5px solid #cbd5e1;
-    border-bottom: 2.5px solid #4f46e5;
+    border-right: 1px solid #334155;
+    border-bottom: 2px solid #4f46e5;
+}
+
+QHeaderView::section:horizontal {
+    background-color: #1e293b;
+    color: #ffffff;
+}
+
+QHeaderView::section:vertical {
+    background-color: #0f172a;
+    color: #ffffff;
+    font-weight: 700;
 }
 
 /* Modern Tabs */

@@ -10,6 +10,7 @@ from app.database.database import SessionLocal
 from app.database.models import Teacher, ScheduleAssignment, TimeSlot, DayOfWeek, ShiftType
 from app.auth.session import session
 from app.ui.excel_exporter import export_schedule_dialog
+from app.ui.dialogs.schedule_preview_dialog import SchedulePreviewDialog
 
 class TeacherScheduleView(QWidget):
     def __init__(self):
@@ -52,6 +53,23 @@ class TeacherScheduleView(QWidget):
         """)
         export_btn.clicked.connect(self.export_csv)
         btns_layout.addWidget(export_btn)
+
+        modal_btn = QPushButton("🔍 Ver en Pantalla Completa")
+        modal_btn.setCursor(Qt.PointingHandCursor)
+        modal_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7; 
+                color: white; 
+                font-weight: bold; 
+                padding: 10px 16px; 
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #0369a1;
+            }
+        """)
+        modal_btn.clicked.connect(self.open_modal_schedule)
+        btns_layout.addWidget(modal_btn)
 
         refresh_btn = QPushButton("🔄 Actualizar")
         refresh_btn.setCursor(Qt.PointingHandCursor)
@@ -199,19 +217,30 @@ class TeacherScheduleView(QWidget):
         self.breakdown_table = QTableWidget()
         self.breakdown_table.setColumnCount(5)
         self.breakdown_table.setHorizontalHeaderLabels(["Asignatura", "Grupo", "Aula Asignada", "Horas Semanales", "Franja(s) Horaria(s)"])
+        self.breakdown_table.horizontalHeader().setVisible(True)
         self.breakdown_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.breakdown_table.setMaximumHeight(150)
+        self.breakdown_table.setMinimumHeight(130)
+        self.breakdown_table.setMaximumHeight(180)
         self.breakdown_table.setStyleSheet("""
             QTableWidget {
-                gridline-color: #e2e8f0;
+                gridline-color: #cbd5e1;
                 background-color: #ffffff;
+                color: #0f172a;
                 font-size: 12px;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 8px;
+            }
+            QHeaderView {
+                background-color: #1e293b;
             }
             QHeaderView::section {
-                background-color: #f1f5f9;
-                color: #334155;
-                padding: 6px;
-                font-weight: 600;
+                background-color: #1e293b;
+                color: #ffffff;
+                padding: 6px 10px;
+                font-weight: 800;
+                font-size: 11px;
+                border: none;
+                border-right: 1px solid #334155;
             }
         """)
         b_layout.addWidget(self.breakdown_table)
@@ -349,11 +378,29 @@ class TeacherScheduleView(QWidget):
                 return
 
             teacher_name = teacher.name if teacher else "Docente"
-            assignments = list(teacher.assignments)
-            for asg in assignments:
-                _ = asg.time_slot
-                _ = asg.group.subject if asg.group else None
-                _ = asg.room
+            raw_assignments = list(teacher.assignments)
+            assignments = []
+            for asg in raw_assignments:
+                slot = asg.time_slot
+                group = asg.group
+                subj = group.subject if group else None
+                room = asg.room
+                day_val = asg.day.value if hasattr(asg.day, "value") else str(asg.day)
+                assignments.append({
+                    "id": asg.id,
+                    "day": day_val,
+                    "shift": slot.shift.value if slot and hasattr(slot.shift, "value") else (str(slot.shift) if slot else ""),
+                    "start_time": slot.start_time.strftime('%H:%M') if slot and slot.start_time else "",
+                    "end_time": slot.end_time.strftime('%H:%M') if slot and slot.end_time else "",
+                    "subject_name": subj.name if subj else "",
+                    "semester": f"Semestre {subj.semester_id}" if subj else "",
+                    "group_name": group.name if group else "",
+                    "teacher_name": teacher_name,
+                    "teacher_type": teacher.teacher_type.value if hasattr(teacher.teacher_type, "value") else str(teacher.teacher_type),
+                    "room_name": room.name if room else "",
+                    "room_type": room.room_type if room else ""
+                })
+
             clean_name = teacher_name.replace(" ", "_")
             export_schedule_dialog(
                 self,
@@ -364,6 +411,57 @@ class TeacherScheduleView(QWidget):
             )
         except Exception as e:
             QMessageBox.critical(self, "Error de Exportación", f"No se pudo guardar el archivo:\n{e}")
+        finally:
+            db.close()
+
+    def open_modal_schedule(self):
+        db = SessionLocal()
+        try:
+            teacher_id = session.teacher_id
+            if not teacher_id:
+                first_t = db.query(Teacher).first()
+                teacher_id = first_t.id if first_t else None
+
+            if not teacher_id:
+                QMessageBox.warning(self, "Aviso", "No se encontró el docente actual.")
+                return
+
+            teacher = db.query(Teacher).filter_by(id=teacher_id).first()
+            if not teacher or not teacher.assignments:
+                QMessageBox.warning(self, "Visualización", "No tienes clases asignadas en el horario institucional.")
+                return
+
+            assignments = []
+            for asg in teacher.assignments:
+                slot = asg.time_slot
+                group = asg.group
+                subj = group.subject if group else None
+                room = asg.room
+                day_val = asg.day.value if hasattr(asg.day, "value") else str(asg.day)
+                assignments.append({
+                    "id": asg.id,
+                    "time_slot_id": asg.time_slot_id,
+                    "group_id": asg.group_id,
+                    "teacher_id": asg.teacher_id,
+                    "room_id": asg.room_id,
+                    "day": day_val,
+                    "shift": slot.shift.value if slot and hasattr(slot.shift, "value") else (str(slot.shift) if slot else ""),
+                    "start_time": slot.start_time.strftime('%H:%M') if slot and slot.start_time else "",
+                    "end_time": slot.end_time.strftime('%H:%M') if slot and slot.end_time else "",
+                    "subject_name": subj.name if subj else "",
+                    "group_name": group.name if group else "",
+                    "teacher_name": teacher.name,
+                    "room_name": f"{room.name} ({room.room_type})" if room else ""
+                })
+
+            total_hours = len(assignments) * 2
+            dialog = SchedulePreviewDialog(
+                title_text=f"Horario Docente: {teacher.name} ({teacher.teacher_type.value} - {total_hours} hrs/sem)",
+                assignments_data=assignments,
+                metrics={"global_score": 100},
+                parent=self
+            )
+            dialog.exec()
         finally:
             db.close()
 

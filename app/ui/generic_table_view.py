@@ -2,8 +2,9 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, 
     QLabel, QPushButton, QHBoxLayout, QLineEdit, QHeaderView, 
     QFrame, QMessageBox, QDialog, QFormLayout, QDialogButtonBox,
-    QComboBox, QCheckBox
+    QComboBox, QCheckBox, QApplication
 )
+from PySide6.QtGui import QColor
 from PySide6.QtCore import Qt
 from app.database.database import get_db
 
@@ -69,11 +70,11 @@ class GenericTableView(QWidget):
         del_btn.clicked.connect(self.delete_selected_record)
         header_layout.addWidget(del_btn)
 
-        refresh_btn = QPushButton("🔄 Recargar")
-        refresh_btn.setCursor(Qt.PointingHandCursor)
-        refresh_btn.setStyleSheet("background-color: #2563eb; color: white; font-weight: bold; padding: 7px 12px; border-radius: 6px;")
-        refresh_btn.clicked.connect(self.load_data)
-        header_layout.addWidget(refresh_btn)
+        self.refresh_btn = QPushButton("🔄 Recargar")
+        self.refresh_btn.setCursor(Qt.PointingHandCursor)
+        self.refresh_btn.setStyleSheet("background-color: #2563eb; color: white; font-weight: bold; padding: 7px 12px; border-radius: 6px;")
+        self.refresh_btn.clicked.connect(self.load_data)
+        header_layout.addWidget(self.refresh_btn)
         
         layout.addWidget(header_card)
         
@@ -82,16 +83,15 @@ class GenericTableView(QWidget):
         note_lbl.setStyleSheet("font-size: 11px; color: #64748b; margin-left: 5px;")
         layout.addWidget(note_lbl)
 
-        # Table with Pixel-based Fluid Scrolling and High Visibility
+        # Table with Item-based Smooth Scrolling and Complete Visibility
         self.table = QTableWidget()
         self.table.setColumnCount(len(headers))
-        self.table.setHorizontalHeaderLabels(headers)
-        self.table.horizontalHeader().setVisible(True)
-        self.table.horizontalHeader().setFixedHeight(42)
+        self._apply_headers()
         self.table.horizontalHeader().setHighlightSections(False)
-        self.table.setVerticalScrollMode(QTableWidget.ScrollPerPixel)
+        self.table.setVerticalScrollMode(QTableWidget.ScrollPerItem)
         self.table.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
-        self.table.verticalScrollBar().setSingleStep(12)
+        self.table.verticalHeader().setDefaultSectionSize(38)
+        self.table.verticalHeader().setMinimumSectionSize(32)
         
         # Smart Column Sizing: Compact ID, stretched name
         for c_i in range(len(headers)):
@@ -111,42 +111,42 @@ class GenericTableView(QWidget):
                 border: 1.5px solid #cbd5e1;
                 border-radius: 8px;
             }
+            QHeaderView {
+                background-color: #1e293b;
+            }
             QHeaderView::section {
-                background-color: #f1f5f9;
-                color: #000000;
-                padding: 10px 14px;
-                font-weight: 900;
-                font-size: 13px;
+                background-color: #1e293b;
+                color: #ffffff;
+                padding: 8px 12px;
+                font-weight: 800;
+                font-size: 12px;
                 border: none;
-                border-right: 1.5px solid #cbd5e1;
-                border-bottom: 2.5px solid #4f46e5;
+                border-right: 1px solid #334155;
+                border-bottom: 2px solid #4f46e5;
             }
             QTableWidget::item:selected {
                 background-color: #e0e7ff;
                 color: #1e3a8a;
             }
         """)
-        self.table.horizontalHeader().setStyleSheet("""
-            QHeaderView::section {
-                background-color: #f1f5f9;
-                color: #000000;
-                padding: 10px 14px;
-                font-weight: 900;
-                font-size: 13px;
-                border: none;
-                border-right: 1.5px solid #cbd5e1;
-                border-bottom: 2.5px solid #4f46e5;
-            }
-        """)
         self.table.itemChanged.connect(self.on_cell_edited)
-        layout.addWidget(self.table)
+        layout.addWidget(self.table, 1)
         
         self.load_data()
+
+    def _apply_headers(self):
+        self.table.setColumnCount(len(self.headers))
+        self.table.setHorizontalHeaderLabels(self.headers)
+        self.table.horizontalHeader().setVisible(True)
         
     def load_data(self):
         self.is_loading = True
-        self.table.setHorizontalHeaderLabels(self.headers)
-        self.table.horizontalHeader().setVisible(True)
+        self.refresh_btn.setText("⏳ Cargando...")
+        self.refresh_btn.setEnabled(False)
+        self.count_badge.setText("⏳ Consultando...")
+        QApplication.processEvents()
+
+        self._apply_headers()
         db = next(get_db())
         try:
             records = db.query(self.model_class).all()
@@ -173,11 +173,14 @@ class GenericTableView(QWidget):
         finally:
             db.close()
             self.is_loading = False
+            self.refresh_btn.setText("🔄 Recargar")
+            self.refresh_btn.setEnabled(True)
 
         self.filter_data(self.search_input.text())
         
     def filter_data(self, query=""):
         self.is_loading = True
+        self._apply_headers()
         query = query.strip().lower()
         if not query:
             filtered = self.raw_data
@@ -196,12 +199,12 @@ class GenericTableView(QWidget):
                 if col_idx == 0: # ID column is non-editable
                     item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                     item.setTextAlignment(Qt.AlignCenter)
-                    item.setForeground(Qt.darkGray)
+                    item.setForeground(QColor("#64748b"))
                 else:
                     # Centered alignment for badges/status
                     if any(badge_icon in str(col_data) for badge_icon in ["🟢", "🟡", "🔴", "✅", "❌", "📋", "💳"]):
                         item.setTextAlignment(Qt.AlignCenter)
-                    item.setForeground(Qt.black)
+                    item.setForeground(QColor("#000000"))
                 self.table.setItem(row_idx, col_idx, item)
         self.is_loading = False
 

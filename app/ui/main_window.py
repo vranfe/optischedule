@@ -7,7 +7,6 @@ from app.auth.session import session
 from app.auth.auth_service import AuthService
 from app.database.database import SessionLocal
 from app.database.models import UserRole, Student, Teacher, Subject, Room, Group, TeacherType, Config
-from app.ui.widgets.animated_stack import AnimatedStackedWidget
 from app.ui.views.login_view import LoginView
 from app.ui.views.dashboard_view import DashboardView
 from app.ui.views.workload_view import WorkloadView
@@ -233,9 +232,9 @@ class MainWindow(QMainWindow):
 
         self.main_content_layout.addWidget(self.top_navbar)
 
-        # Animated Content Stack (Smooth React-like page transitions)
-        self.content_stack = AnimatedStackedWidget()
-        self.content_stack.setStyleSheet("background-color: #f8fafc; padding: 15px;")
+        # Main Content Stack
+        self.content_stack = QStackedWidget()
+        self.content_stack.setStyleSheet("background-color: #f8fafc; padding: 0px;")
         self.main_content_layout.addWidget(self.content_stack)
 
         self.app_layout.addWidget(self.sidebar)
@@ -329,28 +328,28 @@ class MainWindow(QMainWindow):
                     ("🎯 Evaluación y Métricas", ResultsView()),
                     ("🎓 Estudiantes (CRUD)", GenericTableView(
                         "Estudiantes", 
-                        ["ID Estudiante", "👤 Nombre Completo", "🎓 Semestre", "⚖️ Nivelación", "📋 Matrícula", "💳 Acuerdo de Pago"],
+                        ["ID Estudiante", "Nombre Completo", "Semestre", "Nivelación", "Estado Matrícula", "Acuerdo de Pago"],
                         Student, ["id", "name", "semester_id", "is_regular", "is_enrolled", "has_payment_agreement"]
                     )),
                     ("👨‍🏫 Docentes (CRUD)", GenericTableView(
                         "Docentes", 
-                        ["ID Docente", "👨‍🏫 Nombre Completo", "📜 Modalidad Contractual"],
+                        ["ID Docente", "Nombre Docente", "Modalidad Contractual"],
                         Teacher, ["id", "name", "teacher_type"],
                         enum_mappings={"teacher_type": TeacherType}
                     )),
                     ("📚 Asignaturas (CRUD)", GenericTableView(
                         "Asignaturas", 
-                        ["ID Asignatura", "📖 Nombre de la Materia", "⏱️ Horas / Semana", "🎓 Semestre Malla"],
+                        ["ID Asignatura", "Nombre de la Materia", "Horas Semanales", "Semestre Malla"],
                         Subject, ["id", "name", "hours_per_week", "semester_id"]
                     )),
                     ("👥 Grupos (CRUD)", GenericTableView(
                         "Grupos", 
-                        ["ID Grupo", "👥 Código de Grupo", "ID Asignatura", "📊 Estudiantes Estimados"],
+                        ["ID Grupo", "Código de Grupo", "ID Asignatura", "Estudiantes Estimados"],
                         Group, ["id", "name", "subject_id", "expected_students"]
                     )),
                     ("📍 Aulas (CRUD)", GenericTableView(
                         "Aulas", 
-                        ["ID Aula", "📍 Nombre / Número", "👥 Capacidad Máxima", "🏢 Tipo de Espacio"],
+                        ["ID Aula", "Nombre / Número", "Capacidad Máxima", "Tipo de Espacio"],
                         Room, ["id", "name", "capacity", "room_type"]
                     ))
                 ]
@@ -375,13 +374,15 @@ class MainWindow(QMainWindow):
 
             for title, widget in views:
                 self.menu_list.addItem(title)
-                # Wrap all pages in fluid QScrollArea to guarantee no content clipping across any screen resolution
-                scroll = QScrollArea()
-                scroll.setWidgetResizable(True)
-                scroll.setFrameShape(QFrame.NoFrame)
-                scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-                scroll.setWidget(widget)
-                self.content_stack.addWidget(scroll)
+                if isinstance(widget, (RulesView, PreferencesView, StudentPreferencesView)):
+                    scroll = QScrollArea()
+                    scroll.setWidgetResizable(True)
+                    scroll.setFrameShape(QFrame.NoFrame)
+                    scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+                    scroll.setWidget(widget)
+                    self.content_stack.addWidget(scroll)
+                else:
+                    self.content_stack.addWidget(widget)
 
             if views:
                 self.menu_list.setCurrentRow(0)
