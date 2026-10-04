@@ -58,7 +58,6 @@ class ScheduleView(QWidget):
                 border-color: #4f46e5;
             }
         """)
-        self.semester_combo.addItem("📚 Todos los Semestres", None)
         self.semester_combo.addItem("1️⃣ Semestre 1", 1)
         self.semester_combo.addItem("2️⃣ Semestre 2", 2)
         self.semester_combo.addItem("3️⃣ Semestre 3", 3)
@@ -220,6 +219,10 @@ class ScheduleView(QWidget):
         
         self.load_schedule()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.load_schedule()
+
     def _on_lateral_slider_changed(self, value):
         self.table.verticalScrollBar().setValue(value)
 
@@ -349,12 +352,13 @@ class ScheduleView(QWidget):
             ShiftType.NIGHT: "#faf5ff"
         }
 
-        selected_sem = self.semester_combo.currentData() if hasattr(self, 'semester_combo') else None
-        if selected_sem is not None:
-            assignments = [
-                a for a in assignments 
-                if a.group and a.group.subject and a.group.subject.semester_id == selected_sem
-            ]
+        selected_sem = self.semester_combo.currentData() if hasattr(self, 'semester_combo') else 1
+        if selected_sem is None:
+            selected_sem = 1
+        assignments = [
+            a for a in assignments 
+            if a.group and a.group.subject and a.group.subject.semester_id == selected_sem
+        ]
 
         for asg in assignments:
             if asg.time_slot_id in slot_indices and asg.day.value in day_indices:

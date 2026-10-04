@@ -112,7 +112,6 @@ class SchedulePreviewDialog(QDialog):
                 border-color: #4f46e5;
             }
         """)
-        self.semester_combo.addItem("📚 Todos los Semestres", None)
         self.semester_combo.addItem("1️⃣ Semestre 1", 1)
         self.semester_combo.addItem("2️⃣ Semestre 2", 2)
         self.semester_combo.addItem("3️⃣ Semestre 3", 3)
@@ -137,7 +136,7 @@ class SchedulePreviewDialog(QDialog):
 
         layout.addWidget(controls_bar)
 
-        # Timetable Grid + Fluid Lateral Navigation Slider
+        # Timetable Grid + Fluid Lateral Navigation Slider (Unified Single Scrollbar)
         table_container = QHBoxLayout()
         table_container.setSpacing(8)
 
@@ -145,8 +144,10 @@ class SchedulePreviewDialog(QDialog):
         self.table.setColumnCount(len(self.days))
         self.table.setHorizontalHeaderLabels(self.days)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.verticalHeader().setMinimumWidth(185)
-        self.table.verticalHeader().setDefaultSectionSize(75)
+        self.table.verticalHeader().setMinimumWidth(200)
+        self.table.verticalHeader().setDefaultSectionSize(self.base_row_height)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.table.setWordWrap(True)
         self.table.setStyleSheet("""
             QTableWidget {
                 background-color: #ffffff;
@@ -424,11 +425,11 @@ class SchedulePreviewDialog(QDialog):
                     teacher_name = asg.get('teacher_name') or teachers_map.get(asg.get('teacher_id'), '')
                     room_name = asg.get('room_name') or rooms_map.get(asg.get('room_id'), '')
 
-                    sem_tag = f"Sem {g_sem} • " if g_sem else ""
                     text = (
-                        f"📘 {subj_name} ({group_name})\n"
-                        f"[{sem_tag}{room_name}]\n"
-                        f"👨‍🏫 {teacher_name}"
+                        f"📘 {subj_name}\n"
+                        f"👥 {group_name}\n"
+                        f"👨‍🏫 {teacher_name}\n"
+                        f"📍 {room_name}"
                     )
                     curr = self.table.item(r_idx, c_idx)
                     if curr and curr.text():
@@ -443,17 +444,7 @@ class SchedulePreviewDialog(QDialog):
                         cell_item.setFont(font)
                         self.table.setItem(r_idx, c_idx, cell_item)
 
-        # Balanced row heights: prevent extreme stretching while keeping all shifts visible
-        for r in range(self.table.rowCount()):
-            max_lines = 1
-            for c in range(self.table.columnCount()):
-                item = self.table.item(r, c)
-                if item and item.text():
-                    lines = item.text().count('\n') + 1
-                    if lines > max_lines:
-                        max_lines = lines
-            calc_height = min(max(70, max_lines * 20), 160)
-            self.table.setRowHeight(r, calc_height)
+        self.table.resizeRowsToContents()
 
     def _handle_confirm(self):
         if self.on_confirm_callback:

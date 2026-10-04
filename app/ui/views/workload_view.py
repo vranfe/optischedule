@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QComboBox, QMessageBox
 )
 from PySide6.QtCore import Qt
-from app.database.database import get_db
+from app.database.database import get_db, SessionLocal
 from app.database.models import Teacher, ScheduleAssignment, Config, TeacherType
 from app.auth.session import session
 from app.ui.workers.solver_worker import SolverWorker
@@ -64,12 +64,12 @@ class WorkloadView(QWidget):
         layout.addLayout(self.kpi_layout)
 
         # Controls row: Filter by load state (Admin only)
-        self.filter_container = QWidget()
+        self.filter_container = QWidget(self)
         filter_row = QHBoxLayout(self.filter_container)
         filter_row.setContentsMargins(0, 0, 0, 0)
         filter_row.addWidget(QLabel("<b>Filtrar por Estado de Carga:</b>"))
         
-        self.filter_combo = QComboBox()
+        self.filter_combo = QComboBox(self.filter_container)
         self.filter_combo.addItems([
             "📋 Todos los Docentes", 
             "⚡ Solo Docentes con Subcarga (<80%)", 
@@ -80,8 +80,22 @@ class WorkloadView(QWidget):
         self.filter_combo.setFixedWidth(280)
         filter_row.addWidget(self.filter_combo)
         filter_row.addStretch()
-
         layout.addWidget(self.filter_container)
+
+        # Progress & Status Bar
+        self.progress_container = QVBoxLayout()
+        self.status_lbl = QLabel("")
+        self.status_lbl.setStyleSheet("font-size: 12px; color: #475569; font-weight: 600;")
+        self.status_lbl.setVisible(False)
+        
+        self.pbar = QProgressBar()
+        self.pbar.setRange(0, 100)
+        self.pbar.setValue(0)
+        self.pbar.setTextVisible(True)
+        self.pbar.setVisible(False)
+        self.progress_container.addWidget(self.status_lbl)
+        self.progress_container.addWidget(self.pbar)
+        layout.addLayout(self.progress_container)
 
         # Table
         self.table = QTableWidget()
@@ -281,24 +295,33 @@ class WorkloadView(QWidget):
             action_item = QTableWidgetItem(data["action_text"])
             self.table.setItem(row_idx, 7, action_item)
 
-    def run_load_balance_optimization(self):
-        reply = QMessageBox.question(
-            self, "Optimización de Carga",
-            "¿Deseas ejecutar el motor CP-SAT con perfil de 'Balance de Carga y Reducción de Subcarga'?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            self.balance_btn.setEnabled(False)
-            self.balance_btn.setText("⏳ Optimizando carga...")
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.load_data()
 
-            self.worker = SolverWorker(time_limit_seconds=15.0, profile="load_balance")
-            self.worker.finished_signal.connect(self.on_balance_finished)
-            self.worker.error_signal.connect(self.on_balance_error)
-            self.worker.start()
+    def on_worker_progress(self, percent, msg):
+        self.pbar.setValue(percent)
+        self.status_lbl.setText(f"⚙️ {msg}")
+
+    def run_load_balance_optimization(self):
+        self.balance_btn.setEnabled(False)
+        self.balance_btn.setText("⏳ Optimizando carga...")
+        self.status_lbl.setVisible(True)
+        self.pbar.setVisible(True)
+        self.pbar.setValue(0)
+        self.status_lbl.setText("Iniciando balance de carga con CP-SAT...")
+
+        self.worker = SolverWorker(time_limit_seconds=15.0, profile="load_balance")
+        self.worker.progress_signal.connect(self.on_worker_progress)
+        self.worker.finished_signal.connect(self.on_balance_finished)
+        self.worker.error_signal.connect(self.on_balance_error)
+        self.worker.start()
 
     def on_balance_finished(self, result):
         self.balance_btn.setEnabled(True)
         self.balance_btn.setText("⚡ Optimizar Balance (Reducir Subcarga)")
+        self.pbar.setValue(100)
+        self.status_lbl.setText("✅ Optimización completada exitosamente.")
 
         if result.get("status") == "SUCCESS":
             db = SessionLocal()
@@ -318,7 +341,16 @@ class WorkloadView(QWidget):
             finally:
                 db.close()
 
-            QMessageBox.information(self, "Balance Completado", "El horario ha sido reoptimizado con enfoque en reducción de subcarga docente.")
+            total_asg = len(result.get("assignments", []))
+            solver_st = result.get("solver_status", "OPTIMAL")
+            QMessageBox.information(
+                self, 
+                "✅ Balance de Carga Exitoso", 
+                f"El motor OR-Tools CP-SAT completó la reoptimización con estado: {solver_st}.\n\n"
+                f"• Clases asignadas rebalanceadas: {total_asg} bloques semanales.\n"
+                f"• Se maximizó la ocupación de docentes de Tiempo Completo y Medio Tiempo para reducir la subcarga.\n"
+                f"• Los indicadores KPI y las alertas laborales han sido recalculados."
+            )
             self.load_data()
         else:
             QMessageBox.warning(self, "Aviso", result.get("msg", "No se encontró solución factible."))
@@ -326,4 +358,5 @@ class WorkloadView(QWidget):
     def on_balance_error(self, err):
         self.balance_btn.setEnabled(True)
         self.balance_btn.setText("⚡ Optimizar Balance (Reducir Subcarga)")
+        self.status_lbl.setText(f"❌ Error: {err}")
         QMessageBox.critical(self, "Error", f"Error en la optimización: {err}")

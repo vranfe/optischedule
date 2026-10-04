@@ -71,6 +71,7 @@ class Subject(Base):
     __tablename__ = "subjects"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
+    credits = Column(Integer, default=3)
     hours_per_week = Column(Integer, default=4)
     semester_id = Column(Integer, ForeignKey("semesters.id"))
     semester = relationship("Semester", back_populates="subjects")

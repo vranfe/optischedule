@@ -162,7 +162,6 @@ class SolutionComparisonView(QWidget):
                 border-color: #4f46e5;
             }
         """)
-        self.semester_combo.addItem("📚 Todos los Semestres", None)
         self.semester_combo.addItem("1️⃣ Semestre 1", 1)
         self.semester_combo.addItem("2️⃣ Semestre 2", 2)
         self.semester_combo.addItem("3️⃣ Semestre 3", 3)
@@ -528,7 +527,9 @@ class SolutionComparisonView(QWidget):
             ShiftType.NIGHT: "#faf5ff"
         }
 
-        selected_sem = self.semester_combo.currentData() if hasattr(self, 'semester_combo') else None
+        selected_sem = self.semester_combo.currentData() if hasattr(self, 'semester_combo') else 1
+        if selected_sem is None:
+            selected_sem = 1
 
         assignments = sol.get("assignments", [])
         for asg in assignments:

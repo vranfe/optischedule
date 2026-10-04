@@ -14,6 +14,24 @@ class StudentScheduleOptimizer:
         if not selected_subject_ids:
             return {"status": "FAILED", "msg": "No seleccionaste ninguna asignatura.", "options": []}
 
+        # 0. Credit Limit & Subject Count Validation (Enterprise Business Rule: Max 22 credits, Max 10 subjects)
+        selected_subjects = self.db.query(Subject).filter(Subject.id.in_(selected_subject_ids)).all()
+        total_credits = sum(s.credits if hasattr(s, "credits") and s.credits else 3 for s in selected_subjects)
+        
+        if total_credits > 22:
+            return {
+                "status": "FAILED", 
+                "msg": f"Has superado el límite institucional de créditos permitidos ({total_credits} / 22 créditos). Por favor desmarca asignaturas para continuar.", 
+                "options": []
+            }
+
+        if len(selected_subject_ids) > 10:
+            return {
+                "status": "FAILED", 
+                "msg": f"Has seleccionado {len(selected_subject_ids)} asignaturas. El límite máximo de inscripción es de 10 asignaturas por periodo.", 
+                "options": []
+            }
+
         # 1. Fetch all assignments grouped by group_id
         all_assignments = self.db.query(ScheduleAssignment).all()
         if not all_assignments:
@@ -49,11 +67,17 @@ class StudentScheduleOptimizer:
         if missing_subjects:
             return {"status": "FAILED", "msg": f"Algunas asignaturas no tienen grupos programados en el horario institucional.", "options": []}
 
-        # 2. Backtracking / Combinatorial Search for conflict-free schedules
+        # 2. Backtracking Search with Branch-and-Bound Safety (Fast & Non-blocking)
         subject_list = list(selected_subject_ids)
         feasible_combinations = []
+        max_combinations = 60
+        search_counter = [0]
 
         def search_combinations(subj_idx, current_groups, occupied_slots):
+            if len(feasible_combinations) >= max_combinations or search_counter[0] > 3000:
+                return
+            search_counter[0] += 1
+
             if subj_idx == len(subject_list):
                 feasible_combinations.append(list(current_groups))
                 return
@@ -70,27 +94,27 @@ class StudentScheduleOptimizer:
 
         search_combinations(0, [], set())
 
-        # If no 100% combination exists for all subjects, find best largest subset
+        # If no full combination exists for all subjects, evaluate best nearest subset (at most 1 drop)
         if not feasible_combinations and len(subject_list) > 1:
             from itertools import combinations
-            for subset_size in range(len(subject_list) - 1, 0, -1):
-                for sub_list in combinations(subject_list, subset_size):
-                    def search_subset(s_idx, c_groups, occ_slots):
-                        if s_idx == len(sub_list):
-                            feasible_combinations.append(list(c_groups))
-                            return
-                        c_s = sub_list[s_idx]
-                        for g_id, g_info in subject_group_slots[c_s].items():
-                            g_slots = {(s["day"], s["time_slot_id"]) for s in g_info["slots"]}
-                            if not g_slots.intersection(occ_slots):
-                                search_subset(
-                                    s_idx + 1,
-                                    c_groups + [(c_s, g_id, g_info)],
-                                    occ_slots.union(g_slots)
-                                )
-                    search_subset(0, [], set())
-                    if feasible_combinations:
-                        break
+            subset_size = len(subject_list) - 1
+            for sub_list in combinations(subject_list, subset_size):
+                def search_subset(s_idx, c_groups, occ_slots):
+                    if len(feasible_combinations) >= 10:
+                        return
+                    if s_idx == len(sub_list):
+                        feasible_combinations.append(list(c_groups))
+                        return
+                    c_s = sub_list[s_idx]
+                    for g_id, g_info in subject_group_slots[c_s].items():
+                        g_slots = {(s["day"], s["time_slot_id"]) for s in g_info["slots"]}
+                        if not g_slots.intersection(occ_slots):
+                            search_subset(
+                                s_idx + 1,
+                                c_groups + [(c_s, g_id, g_info)],
+                                occ_slots.union(g_slots)
+                            )
+                search_subset(0, [], set())
                 if feasible_combinations:
                     break
 

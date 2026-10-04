@@ -396,7 +396,7 @@ class GenericTableView(QWidget):
                         val = widget.isChecked()
                     else:
                         val_str = widget.text().strip()
-                        if key in ["hours_per_week", "capacity", "expected_students", "semester_id", "number"]:
+                        if key in ["hours_per_week", "credits", "capacity", "expected_students", "semester_id", "number"]:
                             val = int(val_str) if val_str else 0
                         else:
                             val = val_str

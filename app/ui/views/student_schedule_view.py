@@ -541,8 +541,21 @@ class StudentScheduleView(QWidget):
         self.update_subject_count()
 
     def update_subject_count(self):
-        checked = sum(1 for cb in self.subject_checkboxes.values() if cb.isChecked())
-        self.subj_count_lbl.setText(f"{checked} seleccionadas")
+        checked = 0
+        total_credits = 0
+        subjects_map = getattr(self, "subjects_map", {})
+        for s_id, cb in self.subject_checkboxes.items():
+            if cb.isChecked():
+                checked += 1
+                subj = subjects_map.get(s_id)
+                total_credits += (subj.credits if subj and hasattr(subj, "credits") and subj.credits else 3)
+
+        if total_credits > 22:
+            self.subj_count_lbl.setText(f"⚠️ {checked} materias ({total_credits}/22 créd. EXCEDIDO)")
+            self.subj_count_lbl.setStyleSheet("font-size: 11px; font-weight: 800; color: #dc2626; padding: 3px 8px; background-color: #fee2e2; border-radius: 4px; border: 1px solid #f87171;")
+        else:
+            self.subj_count_lbl.setText(f"{checked} materias • {total_credits}/22 créditos")
+            self.subj_count_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #4338ca; padding: 3px 8px; background-color: #e0e7ff; border-radius: 4px;")
 
     def load_data(self):
         db = SessionLocal()
@@ -612,13 +625,16 @@ class StudentScheduleView(QWidget):
                 if item.widget():
                     item.widget().deleteLater()
 
-            # Fetch subjects of student's semester + other semesters if irregular
+            # Academic Prerequisite Rule:
+            # Regular students get current semester subjects.
+            # Irregular students get pending lower semesters + current semester (cannot jump to unapproved advanced semesters).
             if is_regular:
                 subjects = db.query(Subject).filter_by(semester_id=student.semester_id).all()
             else:
-                sem_ids = [max(1, student.semester_id - 1), student.semester_id, min(4, student.semester_id + 1)]
+                sem_ids = list(range(1, student.semester_id + 1))
                 subjects = db.query(Subject).filter(Subject.semester_id.in_(sem_ids)).all()
 
+            self.subjects_map = {s.id: s for s in subjects}
             self.subject_checkboxes = {}
             for subj in subjects:
                 card_frame = QFrame()
@@ -643,7 +659,7 @@ class StudentScheduleView(QWidget):
                 cb.stateChanged.connect(self.update_subject_count)
                 c_l.addWidget(cb)
 
-                badge = QLabel(f"{subj.hours_per_week}h • Sem {subj.semester_id}")
+                badge = QLabel(f"{subj.credits} cr • {subj.hours_per_week}h • Sem {subj.semester_id}")
                 badge.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b; background-color: #f1f5f9; padding: 2px 8px; border-radius: 4px;")
                 c_l.addWidget(badge)
 
@@ -672,6 +688,18 @@ class StudentScheduleView(QWidget):
             selected_ids = [s_id for s_id, cb in self.subject_checkboxes.items() if cb.isChecked()]
             if not selected_ids:
                 QMessageBox.warning(self, "Atención", "Debes seleccionar al menos una asignatura para optimizar tu horario.")
+                return
+
+            # Credit limit guard
+            subjects_map = getattr(self, "subjects_map", {})
+            total_credits = sum(subjects_map.get(sid).credits if subjects_map.get(sid) and hasattr(subjects_map.get(sid), "credits") and subjects_map.get(sid).credits else 3 for sid in selected_ids)
+            if total_credits > 22:
+                QMessageBox.warning(
+                    self, "Límite de Créditos Excedido",
+                    f"Has seleccionado {total_credits} créditos en {len(selected_ids)} asignaturas.\n\n"
+                    f"El reglamento institucional de la UMB establece un tope máximo de 22 créditos por periodo académico.\n\n"
+                    f"Por favor desmarca algunas materias para continuar con la optimización."
+                )
                 return
 
             shift_id = self.shift_btn_group.checkedId()

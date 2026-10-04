@@ -8,14 +8,14 @@ from app.database.models import User, UserRole, Teacher, Student
 
 class CredentialsDialog(QDialog):
     """
-    Sleek modal dialog for viewing and auto-selecting system testing accounts.
+    Sleek modal dialog for viewing and auto-selecting system demonstration accounts with industry-standard secure passwords.
     """
     account_selected = Signal(str, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("OptiSchedule UMB - Credenciales de Demostración y Sustentación")
-        self.resize(720, 520)
+        self.setWindowTitle("OptiSchedule UMB - Directorio de Cuentas y Credenciales Seguras")
+        self.resize(760, 540)
         self.init_ui()
 
     def init_ui(self):
@@ -35,9 +35,9 @@ class CredentialsDialog(QDialog):
         h_layout = QVBoxLayout(header)
         h_layout.setSpacing(4)
         
-        t = QLabel("🔑 Cuentas y Credenciales de Acceso")
+        t = QLabel("🔑 Cuentas y Credenciales de Acceso Empresarial")
         t.setStyleSheet("font-size: 16px; font-weight: 800; color: #ffffff;")
-        s = QLabel("Selecciona cualquier usuario para auto-completar el formulario de inicio de sesión.")
+        s = QLabel("Selecciona cualquier usuario para auto-completar el inicio de sesión. Contraseñas protegidas con PBKDF2-HMAC-SHA256.")
         s.setStyleSheet("font-size: 11px; color: #e2e8f0;")
         h_layout.addWidget(t)
         h_layout.addWidget(s)
@@ -68,8 +68,8 @@ class CredentialsDialog(QDialog):
 
         # Footer
         footer = QHBoxLayout()
-        hint = QLabel("💡 <i>Nota: Todas las contraseñas por defecto son '123'</i>")
-        hint.setStyleSheet("font-size: 11px; color: #64748b;")
+        hint = QLabel("🔒 <i>Estándar de Seguridad: Mín. 8 caracteres, mayúscula, minúscula, número y símbolo especial.</i>")
+        hint.setStyleSheet("font-size: 11px; color: #475569; font-weight: 600;")
         footer.addWidget(hint)
         footer.addStretch()
 
@@ -92,7 +92,7 @@ class CredentialsDialog(QDialog):
         cl = QVBoxLayout(card)
         cl.setSpacing(8)
 
-        lbl = QLabel("<b>Rol:</b> Administrador / Planeación Académica UMB<br><b>Usuario:</b> <code>admin</code><br><b>Contraseña:</b> <code>123</code>")
+        lbl = QLabel("<b>Rol:</b> Administrador / Planeación Académica UMB<br><b>Usuario:</b> <code>admin</code><br><b>Contraseña Segura:</b> <code>AdminUMB2026!*</code>")
         lbl.setStyleSheet("font-size: 13px; color: #1e293b;")
         cl.addWidget(lbl)
 
@@ -104,7 +104,7 @@ class CredentialsDialog(QDialog):
         btn = QPushButton("⚡ Usar Cuenta Administrador (admin)")
         btn.setCursor(Qt.PointingHandCursor)
         btn.setStyleSheet("background-color: #2563eb; color: white; font-weight: 800; padding: 10px; border-radius: 6px;")
-        btn.clicked.connect(lambda: self._select("admin", "123"))
+        btn.clicked.connect(lambda: self._select("admin", "AdminUMB2026!*"))
         cl.addWidget(btn)
 
         l.addWidget(card)
@@ -124,7 +124,7 @@ class CredentialsDialog(QDialog):
 
         db = SessionLocal()
         try:
-            teachers = db.query(Teacher).limit(15).all()
+            teachers = db.query(Teacher).all()
             table.setRowCount(len(teachers))
             for r, t in enumerate(teachers):
                 u_name = f"docente{t.id}"
@@ -135,7 +135,7 @@ class CredentialsDialog(QDialog):
                 btn = QPushButton("Usar")
                 btn.setCursor(Qt.PointingHandCursor)
                 btn.setStyleSheet("background-color: #10b981; color: white; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
-                btn.clicked.connect(lambda _, un=u_name: self._select(un, "123"))
+                btn.clicked.connect(lambda _, un=u_name: self._select(un, "DocenteUMB2026!*"))
                 table.setCellWidget(r, 3, btn)
         finally:
             db.close()
@@ -156,7 +156,7 @@ class CredentialsDialog(QDialog):
 
         db = SessionLocal()
         try:
-            students = db.query(Student).limit(20).all()
+            students = db.query(Student).all()
             table.setRowCount(len(students))
             for r, s in enumerate(students):
                 u_name = f"estudiante{s.id}"
@@ -176,7 +176,7 @@ class CredentialsDialog(QDialog):
                 btn = QPushButton("Usar")
                 btn.setCursor(Qt.PointingHandCursor)
                 btn.setStyleSheet("background-color: #f59e0b; color: white; font-weight: bold; padding: 4px 10px; border-radius: 4px;")
-                btn.clicked.connect(lambda _, un=u_name: self._select(un, "123"))
+                btn.clicked.connect(lambda _, un=u_name: self._select(un, "EstudianteUMB2026!*"))
                 table.setCellWidget(r, 5, btn)
         finally:
             db.close()

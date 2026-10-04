@@ -339,8 +339,8 @@ class MainWindow(QMainWindow):
                     )),
                     ("📚 Asignaturas (CRUD)", GenericTableView(
                         "Asignaturas", 
-                        ["ID Asignatura", "Nombre de la Materia", "Horas Semanales", "Semestre Malla"],
-                        Subject, ["id", "name", "hours_per_week", "semester_id"]
+                        ["ID Asignatura", "Nombre de la Materia", "Créditos", "Horas Semanales", "Semestre Malla"],
+                        Subject, ["id", "name", "credits", "hours_per_week", "semester_id"]
                     )),
                     ("👥 Grupos (CRUD)", GenericTableView(
                         "Grupos", 

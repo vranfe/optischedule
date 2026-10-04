@@ -1,5 +1,5 @@
 from ortools.sat.python import cp_model
-from app.database.models import Group, Teacher, Room, TimeSlot, TeacherAvailability, DayOfWeek, Config, TeacherSubjectPreference, TeacherType
+from app.database.models import Group, Teacher, Room, TimeSlot, TeacherAvailability, DayOfWeek, Config, TeacherSubjectPreference, TeacherType, ShiftType
 from app.database.database import get_db
 from datetime import time
 
@@ -43,9 +43,9 @@ class ScheduleSolver:
             s_id = g.subject_id
             if s_id not in self.subject_teachers:
                 cands = [t for t in self.teachers if (t.id, s_id) in self.pref_map and self.pref_map[(t.id, s_id)] >= 2]
-                if not cands:
+                if len(cands) < 3:
                     cands = [t for t in self.teachers if (t.id, s_id) in self.pref_map]
-                if not cands:
+                if len(cands) < 3:
                     cands = self.teachers
                 self.subject_teachers[s_id] = cands
 
@@ -68,19 +68,34 @@ class ScheduleSolver:
             valid_rooms = [r for r in self.rooms if r.capacity >= g.expected_students]
             if not valid_rooms:
                 valid_rooms = self.rooms # Fallback
-            else:
-                valid_rooms = sorted(valid_rooms, key=lambda r: r.capacity)[:3]
+            offset = g.id % len(valid_rooms)
+            rotated = valid_rooms[offset:] + valid_rooms[:offset]
+            candidate_rooms = rotated[:6]
             candidate_teachers = self.subject_teachers.get(g.subject_id, self.teachers)
-            cohort = g.name.split("-")[0] if "-" in g.name else "G1"
+            cohort = g.name.split("-")[0].strip() if "-" in g.name else "G1"
             sem_id = g.subject.semester_id if g.subject else 1
 
             for t in candidate_teachers:
-                for r in valid_rooms:
+                for r in candidate_rooms:
                     for d in self.days:
                         for s in self.time_slots:
                             # Saturday restriction: max until 17:00 (5:00 PM)
                             if d == DayOfWeek.SATURDAY and s.end_time > time(17, 0):
                                 continue
+
+                            # Shift restriction based on group denomination (Mañana / Tarde / Noche)
+                            g_name_lower = g.name.lower()
+                            if ("mañana" in g_name_lower or "g1" in g_name_lower):
+                                if s.shift != ShiftType.MORNING:
+                                    continue
+                            elif ("tarde" in g_name_lower or "g2" in g_name_lower):
+                                if s.shift != ShiftType.AFTERNOON:
+                                    continue
+                            elif ("noche" in g_name_lower or "g3" in g_name_lower):
+                                if d != DayOfWeek.SATURDAY and s.shift != ShiftType.NIGHT:
+                                    continue
+                                if d == DayOfWeek.SATURDAY and s.end_time > time(17, 0):
+                                    continue
 
                             # Availability check
                             if (t.id, d.value, s.id) in self.teacher_avail_dict:
@@ -108,13 +123,6 @@ class ScheduleSolver:
             if len(g_vars) > 1:
                 self.model.AddAtMostOne(g_vars)
 
-        # Academic Cohort Non-Collision Constraint:
-        # Groups belonging to the same cohort of the same semester cannot overlap in time.
-        # This guarantees students in that semester can enroll without schedule collisions.
-        for c_vars in cohort_day_slot_vars.values():
-            if len(c_vars) > 1:
-                self.model.AddAtMostOne(c_vars)
-                    
         # A teacher can only teach at most one group at the same (day, time_slot)
         for t_vars in teacher_day_slot_vars.values():
             if len(t_vars) > 1:

@@ -1033,6 +1033,10 @@
    'C:\\Users\\User\\OneDrive - Universidad Manuela Beltrán\\Trabajos cuarto '
    'semestre\\Taller de programación\\optischedule\\app\\auth\\auth_service.py',
    'PYMODULE'),
+  ('app.auth.security',
+   'C:\\Users\\User\\OneDrive - Universidad Manuela Beltrán\\Trabajos cuarto '
+   'semestre\\Taller de programación\\optischedule\\app\\auth\\security.py',
+   'PYMODULE'),
   ('app.auth.session',
    'C:\\Users\\User\\OneDrive - Universidad Manuela Beltrán\\Trabajos cuarto '
    'semestre\\Taller de programación\\optischedule\\app\\auth\\session.py',
