@@ -37,16 +37,22 @@ class ScheduleSolver:
         for tp in self.teacher_prefs:
             self.pref_map[(tp.teacher_id, tp.subject_id)] = tp.preference_score
 
-        # Candidate teachers per subject (affinity >= 2 or fallback to all teachers)
+        # Candidate teachers per subject (strictly matched by academic knowledge area + affinity)
         self.subject_teachers = {}
         for g in self.groups:
             s_id = g.subject_id
             if s_id not in self.subject_teachers:
-                cands = [t for t in self.teachers if (t.id, s_id) in self.pref_map and self.pref_map[(t.id, s_id)] >= 2]
-                if len(cands) < 3:
-                    cands = [t for t in self.teachers if (t.id, s_id) in self.pref_map]
-                if len(cands) < 3:
-                    cands = self.teachers
+                subj = g.subject
+                subj_area = getattr(subj, "knowledge_area", None)
+                domain_teachers = [t for t in self.teachers if not subj_area or getattr(t, "knowledge_area", None) == subj_area]
+                if not domain_teachers:
+                    domain_teachers = self.teachers
+
+                cands = [t for t in domain_teachers if (t.id, s_id) in self.pref_map and self.pref_map[(t.id, s_id)] >= 2]
+                if len(cands) < 2:
+                    cands = [t for t in domain_teachers if (t.id, s_id) in self.pref_map]
+                if not cands:
+                    cands = domain_teachers
                 self.subject_teachers[s_id] = cands
 
         self.variables = {}
@@ -187,6 +193,8 @@ class ScheduleSolver:
             self.model.Maximize(sum(objective_terms))
             
     def solve(self, time_limit_seconds=15.0):
+        if not self.variables:
+            self.build_model()
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = float(time_limit_seconds)
         solver.parameters.num_workers = 8

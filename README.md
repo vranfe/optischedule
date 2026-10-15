@@ -1,174 +1,251 @@
 # 🎓 OptiSchedule UMB — Sistema Inteligente de Optimización y Asignación de Horarios
 
-[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![GUI](https://img.shields.io/badge/GUI-PySide6%20(Qt%206)-green.svg)](https://www.qt.io/)
-[![Design](https://img.shields.io/badge/Design-Pastel%20React--Like-purple.svg)]()
 [![Solver](https://img.shields.io/badge/Solver-Google%20OR--Tools%20CP--SAT-orange.svg)](https://developers.google.com/optimization)
+[![Optimizer](https://img.shields.io/badge/Optimizer-Multi--Objective%20Combinatorial-purple.svg)]()
 [![Database](https://img.shields.io/badge/Database-SQLite%203%20%2B%20SQLAlchemy-lightgrey.svg)](https://www.sqlite.org/)
-[![Tests](https://img.shields.io/badge/Tests-15%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-18%20Passed%20(100%25)-brightgreen.svg)]()
 
-**OptiSchedule UMB** es una plataforma institucional de escritorio diseñada para la **Universidad Manuela Beltrán**, orientada a la resolución automatizada del problema de asignación de horarios universitarios (*University Course Timetabling Problem - UCTP*) mediante programación matemática con restricciones (**Google OR-Tools CP-SAT**), algoritmos genéticos y una interfaz gráfica moderna inspirada en sistemas SaaS reactivos (*Lovable / React Design System*).
+**OptiSchedule UMB** es una plataforma institucional de escritorio de grado universitario desarrollada para la **Universidad Manuela Beltrán (UMB)**. Su propósito es resolver de forma automatizada y matemáticamente óptima el problema de asignación de horarios universitarios (*University Course Timetabling Problem - UCTP*), balanceando la carga docente, aforos de aulas, disponibilidad institucional y las preferencias de los estudiantes.
 
 ---
 
-## ⚡ 1. ¿Cómo Ejecutar el Programa? (Instrucciones Claras)
+## ⚡ 1. ¿Cómo Ejecutar el Programa?
 
-### ⚠️ ¿Por qué falló `python main.py` al ejecutarlo directamente en tu PC?
-En Windows, cuando escribes `python` en PowerShell o CMD sin activar el entorno virtual, el sistema ejecuta el alias global de la tienda de Windows (`C:\Users\...\AppData\Local\Microsoft\WindowsApps\python.exe`). Ese Python global **no tiene instaladas las librerías del proyecto**, provocando el error:
-```text
-ModuleNotFoundError: No module named 'ortools'
+### 🚀 Opción A (La más rápida y directa — Terminal):
+Simplemente abre tu terminal en la carpeta del proyecto y ejecuta:
+```powershell
+python main.py
 ```
-Todas las dependencias requeridas (`PySide6`, `ortools`, `SQLAlchemy`, `pandas`, `numpy==2.2.0`, `matplotlib`) están correctamente instaladas en el entorno virtual `.venv` ubicado en la raíz de este repositorio.
+*No necesitas activar ningún entorno virtual ni ejecutar pasos previos si ya tienes instaladas las librerías en tu Python.*
 
 ---
 
-### 🚀 Opciones para Ejecutar (Elige la que prefieras):
-
-#### Opción A (La más fácil — 1 Clic con `run.bat`):
-Simplemente haz **doble clic** en el archivo **`run.bat`** en el Explorador de Windows, o escribe en tu terminal:
+### 🖱️ Opción B (Doble Clic con `run.bat`):
+Haz doble clic en el archivo **`run.bat`** en el explorador de Windows, o escribe en la consola:
 ```cmd
 .\run.bat
 ```
-*Este script detecta automáticamente el entorno virtual del proyecto, verifica dependencias y lanza la aplicación sin que tengas que configurar nada.*
+*El script detecta automáticamente el intérprete de Python disponible y lanza la aplicación de inmediato.*
 
 ---
 
-#### Opción B (Línea de comandos directa sin activar nada):
-Ejecuta directamente el Python del entorno virtual:
+### 📦 Opción C (Instalación de dependencias si estás en un equipo nuevo):
+Si vas a clonar o ejecutar este proyecto en otra computadora desde cero:
 ```powershell
-.\.venv\Scripts\python.exe main.py
-```
-
----
-
-#### Opción C (Activando el entorno virtual en PowerShell):
-Si deseas activar el entorno en tu sesión de PowerShell:
-```powershell
-# 1. Permitir ejecución de scripts en la sesión actual
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-
-# 2. Activar el entorno virtual
+# 1. (Opcional) Crear y activar entorno virtual aislado
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
-# 3. Ejecutar el programa
+# 2. Instalar dependencias fijadas
+pip install -r requirements.txt
+
+# 3. Iniciar la aplicación
 python main.py
 ```
 
 ---
 
-## 🏛️ 2. Arquitectura y Módulos del Sistema
+## 🔑 2. Cuentas y Contraseñas de Acceso (RBAC)
+
+Las contraseñas se encuentran **cifradas de manera unidireccional en la base de datos SQLite** utilizando el algoritmo estándar de la industria **PBKDF2-HMAC-SHA256** (con sal aleatoria de 16 bytes y 100.000 iteraciones).
+
+Para ingresar y evaluar el sistema, utiliza las siguientes credenciales maestras:
+
+| Rol | Usuario | Contraseña Maestra | Alcance y Funcionalidades |
+|---|---|---|---|
+| **Administrador** | `admin` | `AdminUMB2026!*` | Configuración de calendario, reglas institucionales, comparación de alternativas de horarios, CRUDs de estudiantes, docentes, materias, grupos y aulas con semáforo de disponibilidad. |
+| **Docente** | `docente1` $\dots$ `docente12` | `DocenteUMB2026!*` | Horario semanal asignado, calificación de afinidad temática (filtrada por su área de conocimiento), disponibilidad horaria y visualización de carga laboral. |
+| **Estudiante** | `estudiante1` $\dots$ `estudiante120` | `EstudianteUMB2026!*` | Planificador de horarios, selección de asignaturas (con desbloqueo dinámico para rezagados), optimización de alternativas según balance de preferencias (100% suma cero), matrícula y horario oficial. |
+
+*Tip:* En la pantalla de inicio de sesión puedes hacer clic en **"📋 Ver Cuentas de Acceso (Entorno de Pruebas)"** para desplegar el modal interactivo con todas las cuentas disponibles.
+
+---
+
+## 🧠 3. Los 2 Motores de Optimización de OptiSchedule
+
+El sistema opera mediante una arquitectura de optimización dual especializada: un motor institucional global y un motor combinatorio personal:
+
+```
+                      ARQUITECTURA DE OPTIMIZACIÓN DUAL DE OPTISCHEDULE
+                                             │
+         ┌───────────────────────────────────┴───────────────────────────────────┐
+         ▼                                                                       ▼
+┌───────────────────────────────────────────────┐       ┌───────────────────────────────────────────────┐
+│     1. MOTOR INSTITUCIONAL GLOBAL             │       │     2. MOTOR COMBINATORIO ESTUDIANTIL         │
+│     Google OR-Tools CP-SAT                    │       │     Optimizador de Matrícula Personal         │
+│     (app/optimization/constraint_solver.py)   │       │     (app/optimization/student_optimizer.py)   │
+├───────────────────────────────────────────────┤       ├───────────────────────────────────────────────┤
+│ • Programación por Restricciones + SAT solver │       │ • Búsqueda combinatoria en árbol con poda     │
+│   matemático exacto de Google.                │       │   anticipada (backtracking + forward check).  │
+│ • Resuelve el macro-horario de la facultad    │       │ • Explora las combinaciones de grupos de las  │
+│   garantizando 0 choques de aula o docente.   │       │   materias elegidas por cada estudiante.      │
+│ • Respeta topes semanales de horas docentes   │       │ • Aplica la fórmula de suma cero al 100%      │
+│   y áreas de conocimiento obligatorias.       │       │   sobre jornada, huecos y días libres.        │
+│ • Genera las 4 alternativas del comparador    │       │ • Valida aforos reales de salones y cupos     │
+│   (Equilibrado, Afinidad, Aulas, Compactación)│       │   disponibles antes de confirmar inscripción. │
+└───────────────────────────────────────────────┘       └───────────────────────────────────────────────┘
+```
+
+1. **Google OR-Tools CP-SAT (`app/optimization/constraint_solver.py`):**
+   * Es un motor matemático exacto desarrollado por Google para problemas combinatorios masivos.
+   * Modela el horario universitario como un problema de satisfacción booleana (*SAT*) y programación por restricciones (*CP*).
+   * **Restricciones duras (*Hard Constraints*):** Un profesor no puede estar en dos salones a la vez, un aula no puede albergar dos grupos en la misma franja, los profesores solo dictan materias de su misma área académica (`knowledge_area`), y se respetan los topes semanales de horas según el tipo de vinculación (TC: 42h, MT: 21h, Cátedra: 23h).
+   * **Restricciones blandas (*Soft Constraints*):** Minimizar horas dispersas (huecos) y concentrar los grupos en sus jornadas objetivo (mañana, tarde o noche).
+
+2. **Optimizador de Horario del Estudiante (`app/optimization/student_optimizer.py`):**
+   * Algoritmo de búsqueda combinatoria con poda hacia adelante (*forward checking*).
+   * Toma las materias seleccionadas por el alumno y busca combinaciones de grupos que **no tengan ningún choque horario**.
+   * Califica cada combinación según las preferencias del estudiante (prioridad de jornada, minimizar ventanas y maximizar días libres), respetando la **regla de suma cero al 100%**.
+   * Valida en tiempo real los aforos y cupos disponibles de cada aula antes de permitir la confirmación de matrícula.
+
+---
+
+## 🏛️ 4. Arquitectura de Software Desacoplada en Capas
+
+El sistema sigue una **Arquitectura en Capas Limpia (Layered Architecture)**, asegurando que la interfaz gráfica no manipule directamente el motor matemático ni las consultas SQL a bajo nivel:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. CAPA DE PRESENTACIÓN (UI - PySide6 / Qt6)                                │
+│    main_window.py | views/ | dialogs/ | widgets/ | generic_table_view.py    │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Señales, eventos y llamadas a servicios
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2. CAPA DE SEGURIDAD Y CONTROL DE SESIÓN (app/auth/)                         │
+│    auth_service.py | security.py (PBKDF2) | session.py                      │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Solicitudes de cálculo y reglas de negocio
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3. CAPA DE LÓGICA DE NEGOCIO Y OPTIMIZACIÓN (app/optimization/)              │
+│    constraint_solver.py | student_optimizer.py | genetic_algorithm.py       │
+│    evaluator.py (Métricas multicriterio)                                    │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Sesiones y mapeo relacional (ORM)
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4. CAPA DE PERSISTENCIA Y MODELO DE DOMINIO (app/database/)                 │
+│    models.py (Entidades y relaciones) | database.py (SQLite Engine & Pool)  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📂 5. Estructura Completa del Proyecto y Catálogo de Archivos
 
 ```
 optischedule/
-├── app/
-│   ├── auth/                 # Control de acceso y sesiones (RBAC: Admin, Docente, Estudiante)
-│   ├── database/             # Modelos ORM (SQLAlchemy) y conexión SQLite con WAL & timeout
-│   ├── optimization/         # Núcleo matemático de optimización
-│   │   ├── constraint_solver.py   # Solver principal Google OR-Tools CP-SAT (multi-perfil)
-│   │   ├── student_optimizer.py   # Optimizador combinatorio de horarios del estudiante
-│   │   ├── genetic_algorithm.py   # Algoritmo Genético complementario
-│   │   └── evaluator.py           # Evaluación cuantitativa multicriterio (0 - 100%)
-│   └── ui/                   # Interfaz de usuario moderna (PySide6 / Qt6)
-│       ├── styles.py              # Sistema de diseño con paleta pastel y bordes redondeados
-│       ├── main_window.py         # Barra superior persistente, menú lateral y navegación
-│       ├── schedule_view.py       # Grilla institucional interactiva con exportación CSV
-│       ├── generic_table_view.py  # Tablas CRUD con edición en celda y persistencia en DB
-│       ├── widgets/
-│       │   └── animated_stack.py  # Transiciones suaves de desvanecimiento (fade-in) estilo React
-│       ├── dialogs/
-│       │   ├── schedule_preview_dialog.py  # Visualización modal completa de horarios en pastel
-│       │   └── credentials_dialog.py       # Directorio de cuentas para entorno de evaluación
-│       ├── views/                 # Vistas especializadas por rol
-│       └── workers/               # Hilos en segundo plano (QThread) sin congelamiento de UI
-├── data/                     # Base de datos local SQLite (optischedule.db)
-├── scripts/                  # Generación de datos semilla institucionales
-├── tests/                    # Suite de pruebas automatizadas (pytest)
-├── requirements.txt          # Dependencias fijadas (incluye numpy==2.2.0 certificado)
-└── run.bat                   # Lanzador automático de un solo clic
+├── main.py                         # Punto de entrada principal de la aplicación
+├── requirements.txt                # Dependencias fijadas del proyecto
+├── run.bat                         # Lanzador rápido en 1 clic para Windows
+├── README.md                       # Documentación técnica general
+├── data/
+│   └── optischedule.db             # Base de datos SQLite persistente
+├── scripts/
+│   └── generate_data.py            # Semilla institucional (docentes, materias, aulas, estudiantes)
+├── tests/                          # Suite de pruebas automatizadas (pytest)
+│   ├── test_auth.py                # Pruebas de autenticación, roles y contraseñas
+│   ├── test_crud_table.py          # Pruebas de edición y persistencia en tablas
+│   ├── test_solver_and_rules.py    # Pruebas del solver OR-Tools y restricciones duras
+│   ├── test_student_optimizer.py   # Pruebas del optimizador estudiantil y combinatoria
+│   └── test_validation.py          # Pruebas de acuerdos de pago, cupos y evaluador
+└── app/
+    ├── __init__.py                 # Inicializador de paquete
+    ├── auth/                       # Módulo de Autenticación y Seguridad
+    │   ├── __init__.py
+    │   ├── auth_service.py         # Orquestador de login, validación de credenciales y logout
+    │   ├── security.py             # Políticas de contraseñas, hashing PBKDF2 y validaciones
+    │   └── session.py              # Almacenamiento en memoria de la sesión activa
+    ├── database/                   # Módulo de Acceso a Datos (ORM)
+    │   ├── __init__.py
+    │   ├── database.py             # Conexión SQLite con WAL, pool y SessionLocal
+    │   └── models.py               # Definición de tablas y relaciones de dominio
+    ├── optimization/               # Módulo de Inteligencia Matemática
+    │   ├── __init__.py
+    │   ├── constraint_solver.py    # Solver Google OR-Tools CP-SAT (Horario institucional)
+    │   ├── student_optimizer.py    # Generador de alternativas y combinatoria del estudiante
+    │   └── evaluator.py            # Evaluador cuantitativo de calidad (0 a 100%)
+    └── ui/                         # Módulo de Interfaz de Usuario (PySide6)
+        ├── __init__.py
+        ├── main_window.py          # Ventana principal, navegación lateral y orquestación
+        ├── schedule_view.py        # Grilla gráfica de horarios institucionales
+        ├── generic_table_view.py   # Tabla CRUD genérica con campos calculados y solo lectura
+        ├── excel_exporter.py       # Utilidad de exportación a hojas de cálculo (.xlsx / .csv)
+        ├── styles.py               # Hoja de estilos QSS, paleta y variables visuales
+        ├── dialogs/
+        │   ├── credentials_dialog.py      # Modal con directorio de cuentas de prueba
+        │   └── schedule_preview_dialog.py # Modal a pantalla completa para visualizar horarios
+        ├── views/
+        │   ├── login_view.py              # Pantalla formal de login institucional UMB
+        │   ├── dashboard_view.py          # Panel de bienvenida y resumen de métricas
+        │   ├── rules_view.py              # Calendario de matrículas y reglas académicas
+        │   ├── preferences_view.py        # Disponibilidad y afinidad docente (filtrada por área)
+        │   ├── workload_view.py           # Análisis de carga y horas semanales docentes
+        │   ├── solution_comparison_view.py# Comparador de alternativas y activación de horario
+        │   ├── student_schedule_view.py   # Planificador del estudiante y horario oficial
+        │   └── student_preferences_view.py# Configuración de jornada preferida del alumno
+        ├── widgets/
+        │   ├── __init__.py
+        │   └── animated_stack.py   # Contenedor con transición animada de desvanecimiento
+        └── workers/
+            ├── solver_worker.py        # Hilo en segundo plano para Google OR-Tools
+            └── alternatives_worker.py  # Hilo en segundo plano para generar soluciones múltiples
 ```
 
 ---
 
-## 🎨 3. Novedades y Mejoras Implementadas
+## 📈 6. Proceso de Desarrollo: Metodología Iterativa e Incremental
 
-### 🌸 1. Interfaz Gráfica Pastel (React / Lovable SaaS Style)
-- **Paleta de Colores Refrescantes:** Acentos suaves de menta (`#10b981`), lavanda (`#6366f1`), cielo (`#0ea5e9`), durazno/ámbar (`#f59e0b`) y rosa suave (`#f43f5e`) sobre fondo slate ultralimpio (`#f8fafc`).
-- **Transiciones Animadas:** Integración de `AnimatedStackedWidget` con animaciones de opacidad (*fade-in*) entre secciones.
-- **Adiós a los cuadros rígidos:** Reemplazo de los marcos toscos de `QGroupBox` por tarjetas modernas con bordes redondeados (`14px`) y elevación sutil.
+El desarrollo de OptiSchedule no siguió el modelo rígido de "cascada", sino un **ciclo de vida iterativo e incremental** de más de 20 iteraciones continuas:
 
-### 🔐 2. Login Formal Institucional
-- Pantalla de acceso formal y autorizada de la **Universidad Manuela Beltrán**, eliminando los accesos directos de demo en la tarjeta central.
-- Campo para Usuario/Código Institucional y Contraseña con alternador de visibilidad (icono de ojo).
-- Indicador de seguridad institucional SSL/TLS.
-- Directorio de cuentas de prueba disponible de forma discreta en el pie de página para revisiones académicas.
+```
+[Iteración 1-5: Fundación]
+  • Modelado relacional en SQLAlchemy y arquitectura de base de datos.
+  • Implementación inicial de Google OR-Tools CP-SAT con restricciones de aula y docente.
+  • Esqueleto básico de interfaz con PySide6 y navegación por roles (RBAC).
 
-### 👁️ 3. Visualización Completa de Horarios Optimizados
-- **Modal de Pantalla Completa (`SchedulePreviewDialog`):** Permite ver en cualquier momento el horario institucional o del estudiante con bloques coloreados en tonos pastel, métricas de calidad y botón de exportación a CSV.
-- **Resolución Automática:** Si la solución proviene de OR-Tools con IDs, el visualizador cruza la base de datos para mostrar los nombres de la Asignatura, Docente, Aula y Grupo.
-- **En la vista del estudiante:** Se precargan automáticamente las mejores alternativas y la grilla de previsualización está activa inmediatamente.
+[Iteración 6-10: Restricciones Académicas y Refinamiento]
+  • Reglas de jornada UMB (Mañana, Tarde, Noche) y restricción de sábados a las 17:00.
+  • Tipos de contratación docente (Tiempo Completo, Medio Tiempo, Cátedra) y topes semanales.
+  • Manejo de estudiantes regulares e irregulares (rezagados) con materias adeudadas.
 
-### 🚪 4. Cierre de Sesión Siempre Accesible
-El botón de **Cerrar Sesión** está presente en 3 puntos clave:
-1. **Barra Superior (Navbar):** Visible en todo momento junto al chip del usuario activo y la fecha académica.
-2. **Pie de la Barra Lateral (Sidebar):** Anclado fijamente en la base con botón destacado en tono pastel rose.
-3. **Menú de Navegación:** Ítem seleccionable directo en las vistas de Docente y Estudiante.
+[Iteración 11-15: Optimizador Estudiantil y Experiencia de Usuario]
+  • Creación del motor combinatorio personal para estudiantes (`StudentScheduleOptimizer`).
+  • Sliders interactivos de ponderación de preferencias con regla de suma cero (100%).
+  • Exportación formal a Excel (.xlsx) y visualizadores modales a pantalla completa.
 
-### 📅 5. Calendario y Ventanas de Inscripción (Nivelados vs Rezagados)
-- **Configuración Universitaria (`RulesView`):**
-  - Fechas independientes de matrícula para **Estudiantes Nivelados** (Ordinaria / Prioritaria).
-  - Fechas independientes para **Estudiantes No Nivelados / Rezagados** (Extraordinaria / Ajustes).
-  - **Simulador de Fecha Actual del Sistema:** Permite cambiar la fecha virtual para probar cómo reacciona el sistema en tiempo real.
-- **Interfaz del Estudiante (`StudentScheduleView`):**
-  - Muestra badges de estado: `🎓 Estudiante Nivelado` o `⚠️ No Nivelado (Rezagado)`.
-  - Notifica si la inscripción está habilitada (`🟢 Habilitada`) o si se encuentra fuera de fecha (`🔴 Fuera de Fecha`), permitiendo solicitudes de excepción autorizada.
+[Iteración 16-20+: Robustez, Estabilidad y Respaldo Institucional]
+  • Erradicación de errores críticos en pestañas ocultas (estiramiento de celdas y clamping).
+  • Filtrado estricto por área académica docente (`knowledge_area`) para evitar asignaciones incongruentes.
+  • Desbloqueo dinámico para alumnos rezagados al marcar sus asignaturas adeudadas.
+  • Incorporación de disponibilidad en tiempo real con semáforo en el CRUD de Grupos.
+  • Suite automatizada de pruebas ampliada a 18 tests (100% aprobados).
+```
 
 ---
 
-## 🔑 4. Cuentas Institucionales para Pruebas (RBAC)
+## 🧪 7. Verificación y Pruebas Automatizadas
 
-Todas las cuentas vienen preconfiguradas con la contraseña `123`:
-
-| Rol | Usuario | Contraseña | Perfil / Detalles |
-|---|---|---|---|
-| **Administrador** | `admin` | `123` | Control total del sistema, configuración de reglas, calendario y generación institucional |
-| **Docente TC** | `docente1` $\dots$ `docente5` | `123` | Tiempo Completo (Tope 42 hrs/semana) |
-| **Docente MT** | `docente6` $\dots$ `docente10` | `123` | Medio Tiempo (Tope 21 hrs/semana) |
-| **Docente Cátedra** | `docente11` $\dots$ `docente20` | `123` | Cátedra (Tope 23 hrs/semana) |
-| **Estudiante Nivelado** | `estudiante1` | `123` | Semestre 1, al día en materias y pagos |
-| **Estudiante No Nivelado**| `estudiante2` | `123` | Semestre 1, materias pendientes de otros semestres |
-
----
-
-## 🧪 5. Suite de Pruebas Automatizadas
-
-El proyecto incluye 15 pruebas unitarias e integrales que validan autenticación, solvers matemáticos, evaluación cuantitativa, restricciones duras y optimización combinatoria:
-
+Para ejecutar la batería completa de pruebas:
 ```powershell
-.\.venv\Scripts\pytest.exe -v
+python -m pytest tests/ -v
 ```
 
-Resultado esperado:
+Resultado verificado:
 ```text
-tests/test_auth.py::test_admin_authentication PASSED
-tests/test_auth.py::test_teacher_authentication PASSED
-tests/test_auth.py::test_student_authentication PASSED
-tests/test_auth.py::test_invalid_login PASSED
-tests/test_auth.py::test_logout PASSED
-tests/test_crud_table.py::test_student_crud_update PASSED
-tests/test_crud_table.py::test_teacher_crud_update_enum PASSED
-tests/test_crud_table.py::test_room_crud_capacity PASSED
-tests/test_solver_and_rules.py::test_solver_generates_assignments PASSED
-tests/test_solver_and_rules.py::test_teacher_workload_hard_constraint PASSED
-tests/test_student_optimizer.py::test_student_optimization_finds_options PASSED
-tests/test_student_optimizer.py::test_student_save_schedule PASSED
-tests/test_validation.py::test_room_capacity_logic PASSED
-tests/test_validation.py::test_student_payment_agreement PASSED
-tests/test_validation.py::test_evaluator_empty PASSED
+tests/test_auth.py ........                                              [ 44%]
+tests/test_crud_table.py ...                                             [ 61%]
+tests/test_solver_and_rules.py ..                                        [ 72%]
+tests/test_student_optimizer.py ..                                       [ 83%]
+tests/test_validation.py ...                                             [100%]
 
-============================= 15 passed =============================
+======================== 18 passed in 93.68s (0:01:33) ========================
 ```
 
 ---
 
-## 📄 Licencia y Créditos
+## 📄 Créditos y Autoría
 Proyecto desarrollado para el semillero de investigación y taller de programación de la **Universidad Manuela Beltrán (UMB)**.

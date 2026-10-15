@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QSlider, QScrollArea, QComboBox
 )
 from PySide6.QtGui import QColor, QFont
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 import csv
 from sqlalchemy.orm import joinedload
 from app.database.database import SessionLocal
@@ -28,7 +28,8 @@ class SchedulePreviewDialog(QDialog):
         self.base_row_height = 54
         
         self.setWindowTitle(f"OptiSchedule UMB - Vista Previa: {self.title_text}")
-        self.resize(1120, 750)
+        self.resize(1380, 800)
+        self.setMinimumSize(1150, 680)
         self.init_ui()
 
     def init_ui(self):
@@ -144,8 +145,8 @@ class SchedulePreviewDialog(QDialog):
         self.table.setColumnCount(len(self.days))
         self.table.setHorizontalHeaderLabels(self.days)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.verticalHeader().setMinimumWidth(200)
-        self.table.verticalHeader().setDefaultSectionSize(self.base_row_height)
+        self.table.verticalHeader().setMinimumWidth(180)
+        self.table.verticalHeader().setDefaultSectionSize(55)
         self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.table.setWordWrap(True)
         self.table.setStyleSheet("""
@@ -216,6 +217,7 @@ class SchedulePreviewDialog(QDialog):
         self.lateral_slider.valueChanged.connect(self._on_lateral_slider_changed)
         self.table.verticalScrollBar().rangeChanged.connect(self._sync_lateral_slider_range)
         self.table.verticalScrollBar().valueChanged.connect(self._sync_lateral_slider_value)
+        self.lateral_slider.installEventFilter(self)
 
         lateral_box.addWidget(top_icon)
         lateral_box.addWidget(mid_icon)
@@ -294,6 +296,15 @@ class SchedulePreviewDialog(QDialog):
         lbl.setStyleSheet(f"background-color: {bg}; color: {color}; font-size: 11px; font-weight: bold; border-radius: 5px; padding: 3px 8px; border: 1px solid {color}40;")
         return lbl
 
+    def eventFilter(self, obj, event):
+        if obj == getattr(self, "lateral_slider", None) and event.type() == QEvent.Type.Wheel:
+            delta = event.angleDelta().y()
+            step = 1 if delta < 0 else -1
+            sb = self.table.verticalScrollBar()
+            sb.setValue(sb.value() + step)
+            return True
+        return super().eventFilter(obj, event)
+
     def _on_lateral_slider_changed(self, value):
         self.table.verticalScrollBar().setValue(value)
 
@@ -349,11 +360,10 @@ class SchedulePreviewDialog(QDialog):
         day_indices = {d: i for i, d in enumerate(self.days)}
         slot_indices = {sid: i for i, sid in enumerate(sorted_slot_ids)}
 
-        # Shift-based pastel background colors
         shift_colors = {
-            ShiftType.MORNING: {"bg": "#f0f9ff", "border": "#0284c7", "text": "#0369a1"},
-            ShiftType.AFTERNOON: {"bg": "#f0fdf4", "border": "#10b981", "text": "#047857"},
-            ShiftType.NIGHT: {"bg": "#faf5ff", "border": "#8b5cf6", "text": "#5b21b6"}
+            ShiftType.MORNING: "#f0f9ff",
+            ShiftType.AFTERNOON: "#f0fdf4",
+            ShiftType.NIGHT: "#faf5ff"
         }
 
         # If student optimizer groups format
@@ -373,18 +383,19 @@ class SchedulePreviewDialog(QDialog):
 
                             # Determine slot shift
                             slot_obj = next((sl for sl in sorted_slots if sl.id == slot_id), None)
-                            shift_theme = shift_colors.get(slot_obj.shift, {"bg": "#f8fafc", "text": "#0f172a"}) if slot_obj else {"bg": "#f8fafc", "text": "#0f172a"}
+                            bg_c = shift_colors.get(slot_obj.shift, "#ffffff") if slot_obj else "#ffffff"
 
+                            subj_name = g_info.get('subject_name', '')
+                            grp_name = g_info.get('group_name', '')
                             text = (
-                                f"📘 {g_info.get('subject_name', '')}\n"
-                                f"👥 Grupo: {g_info.get('group_name', '')}\n"
+                                f"📘 {subj_name} ({grp_name})\n"
                                 f"👨‍🏫 {g_info.get('teacher_name', '')}\n"
                                 f"📍 {g_info.get('room_name', '')}"
                             )
                             cell_item = QTableWidgetItem(text)
                             cell_item.setTextAlignment(Qt.AlignCenter)
-                            cell_item.setBackground(QColor(shift_theme["bg"]))
-                            cell_item.setForeground(QColor(shift_theme["text"]))
+                            cell_item.setBackground(QColor(bg_c))
+                            cell_item.setForeground(QColor("#1e3a8a"))
                             font = cell_item.font()
                             font.setBold(True)
                             cell_item.setFont(font)
@@ -418,7 +429,7 @@ class SchedulePreviewDialog(QDialog):
                     c_idx = day_indices[day_val]
 
                     slot_obj = next((sl for sl in sorted_slots if sl.id == time_slot_id), None)
-                    shift_theme = shift_colors.get(slot_obj.shift, {"bg": "#f8fafc", "text": "#0f172a"}) if slot_obj else {"bg": "#f8fafc", "text": "#0f172a"}
+                    bg_c = shift_colors.get(slot_obj.shift, "#ffffff") if slot_obj else "#ffffff"
 
                     subj_name = asg.get('subject_name') or groups_dict.get(group_id, {}).get('subject_name', '')
                     group_name = asg.get('group_name') or groups_dict.get(group_id, {}).get('name', '')
@@ -426,8 +437,7 @@ class SchedulePreviewDialog(QDialog):
                     room_name = asg.get('room_name') or rooms_map.get(asg.get('room_id'), '')
 
                     text = (
-                        f"📘 {subj_name}\n"
-                        f"👥 {group_name}\n"
+                        f"📘 {subj_name} ({group_name})\n"
                         f"👨‍🏫 {teacher_name}\n"
                         f"📍 {room_name}"
                     )
@@ -437,14 +447,18 @@ class SchedulePreviewDialog(QDialog):
                     else:
                         cell_item = QTableWidgetItem(text)
                         cell_item.setTextAlignment(Qt.AlignCenter)
-                        cell_item.setBackground(QColor(shift_theme["bg"]))
-                        cell_item.setForeground(QColor(shift_theme["text"]))
+                        cell_item.setBackground(QColor(bg_c))
+                        cell_item.setForeground(QColor("#1e3a8a"))
                         font = cell_item.font()
                         font.setBold(True)
                         cell_item.setFont(font)
                         self.table.setItem(r_idx, c_idx, cell_item)
 
         self.table.resizeRowsToContents()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.populate_grid()
 
     def _handle_confirm(self):
         if self.on_confirm_callback:

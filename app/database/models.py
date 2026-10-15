@@ -26,13 +26,20 @@ class DayOfWeek(enum.Enum):
     FRIDAY = "VIERNES"
     SATURDAY = "SÁBADO"
 
+class KnowledgeArea(enum.Enum):
+    SOFTWARE = "Ingeniería de Software y Programación"
+    MATH_SCIENCE = "Ciencias Básicas y Matemáticas"
+    INFRASTRUCTURE = "Infraestructura, Redes y Hardware"
+    HUMANITIES_RESEARCH = "Investigación, Humanidades y Gestión"
+    LANGUAGES = "Idiomas y Lenguas Extranjeras"
+
 class Config(Base):
     __tablename__ = "configuration"
     id = Column(Integer, primary_key=True, index=True)
     full_time_hours = Column(Integer, default=42)
     part_time_hours = Column(Integer, default=21)
     catedra_hours = Column(Integer, default=23)
-    max_subjects = Column(Integer, default=32)
+    max_subjects = Column(Integer, default=36)
     max_semesters = Column(Integer, default=4)
     max_consecutive_hours = Column(Integer, default=4)
     allow_saturday = Column(Boolean, default=True)
@@ -73,6 +80,7 @@ class Subject(Base):
     name = Column(String, index=True)
     credits = Column(Integer, default=3)
     hours_per_week = Column(Integer, default=4)
+    knowledge_area = Column(String, default="Ingeniería de Software y Programación")
     semester_id = Column(Integer, ForeignKey("semesters.id"))
     semester = relationship("Semester", back_populates="subjects")
     groups = relationship("Group", back_populates="subject")
@@ -83,6 +91,7 @@ class Teacher(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     teacher_type = Column(Enum(TeacherType))
+    knowledge_area = Column(String, default="Ingeniería de Software y Programación")
     user = relationship("User", back_populates="teacher", uselist=False)
     availabilities = relationship("TeacherAvailability", back_populates="teacher", cascade="all, delete-orphan")
     subject_preferences = relationship("TeacherSubjectPreference", back_populates="teacher", cascade="all, delete-orphan")
@@ -123,6 +132,40 @@ class Group(Base):
     expected_students = Column(Integer, default=0)
     subject = relationship("Subject", back_populates="groups")
     assignments = relationship("ScheduleAssignment", back_populates="group")
+    enrollments = relationship("StudentEnrollment", back_populates="group", cascade="all, delete-orphan")
+
+    @property
+    def subject_name(self):
+        return self.subject.name if self.subject else (f"Asignatura #{self.subject_id}" if self.subject_id else "-")
+
+    @property
+    def enrolled_count(self):
+        return len(self.enrollments) if self.enrollments else 0
+
+    @property
+    def max_capacity(self):
+        if self.assignments:
+            for asg in self.assignments:
+                if asg.room and asg.room.capacity:
+                    return asg.room.capacity
+        return self.expected_students or 35
+
+    @property
+    def available_quota(self):
+        avail = self.max_capacity - self.enrolled_count
+        return max(0, avail)
+
+    @property
+    def availability_status(self):
+        avail = self.available_quota
+        cap = self.max_capacity
+        enrolled = self.enrolled_count
+        if avail == 0:
+            return f"🔴 Lleno ({enrolled}/{cap})"
+        elif avail <= 5:
+            return f"🟡 {avail} libres ({enrolled}/{cap})"
+        else:
+            return f"🟢 {avail} libres ({enrolled}/{cap})"
 
 class Student(Base):
     __tablename__ = "students"
@@ -132,6 +175,7 @@ class Student(Base):
     has_payment_agreement = Column(Boolean, default=False)
     is_enrolled = Column(Boolean, default=True)
     is_regular = Column(Boolean, default=True) # Nivelado (True) vs No Nivelado/Rezagado (False)
+    pending_subject_ids = Column(String, default="") # Comma-separated subject IDs owed from prior semesters
     semester = relationship("Semester", back_populates="students")
     user = relationship("User", back_populates="student", uselist=False)
     preferences = relationship("StudentPreference", back_populates="student", cascade="all, delete-orphan")
@@ -144,7 +188,7 @@ class StudentEnrollment(Base):
     group_id = Column(Integer, ForeignKey("groups.id"))
     
     student = relationship("Student", back_populates="enrollments")
-    group = relationship("Group")
+    group = relationship("Group", back_populates="enrollments")
 
 class StudentPreference(Base):
     __tablename__ = "student_preferences"

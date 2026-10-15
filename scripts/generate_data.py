@@ -143,58 +143,58 @@ def create_data(force_reset=False):
         db_semesters.append(sem)
     db.commit()
 
-    # Official Curriculum Data from UMB PDF (Semesters 1 to 4)
-    # Format: (Semester, Name, Credits, HoursPerWeek)
+    # Official Curriculum Data from UMB PDF (Semesters 1 to 4) with KnowledgeArea
+    # Format: (Semester, Name, Credits, HoursPerWeek, KnowledgeArea)
     curriculum_data = [
         # Semestre 1 (10 Asignaturas - 19 Créditos)
-        (1, "Orientación a la Ingeniería", 1, 2),
-        (1, "Lógica de Programación", 3, 4),
-        (1, "Teoría General de Sistemas", 2, 2),
-        (1, "Taller de Estrategias del Pensamiento", 1, 2),
-        (1, "Matemáticas Básicas", 2, 2),
-        (1, "Álgebra Lineal", 2, 2),
-        (1, "Física Mecánica y Lab", 4, 4),
-        (1, "Inglés Inicial", 1, 2),
-        (1, "Cátedra Manuela Beltrán", 1, 2),
-        (1, "Comunicación Oral y Escrita", 2, 2),
+        (1, "Orientación a la Ingeniería", 1, 2, "Ingeniería de Software y Programación"),
+        (1, "Lógica de Programación", 3, 4, "Ingeniería de Software y Programación"),
+        (1, "Teoría General de Sistemas", 2, 2, "Ingeniería de Software y Programación"),
+        (1, "Taller de Estrategias del Pensamiento", 1, 2, "Investigación, Humanidades y Gestión"),
+        (1, "Matemáticas Básicas", 2, 2, "Ciencias Básicas y Matemáticas"),
+        (1, "Álgebra Lineal", 2, 2, "Ciencias Básicas y Matemáticas"),
+        (1, "Física Mecánica y Lab", 4, 4, "Ciencias Básicas y Matemáticas"),
+        (1, "Inglés Inicial", 1, 2, "Idiomas y Lenguas Extranjeras"),
+        (1, "Cátedra Manuela Beltrán", 1, 2, "Investigación, Humanidades y Gestión"),
+        (1, "Comunicación Oral y Escrita", 2, 2, "Investigación, Humanidades y Gestión"),
 
         # Semestre 2 (9 Asignaturas - 20 Créditos)
-        (2, "Programación Orientada a Objetos", 3, 4),
-        (2, "Arquitectura de Hardware", 3, 4),
-        (2, "Taller de Fundamentos de Investigación", 1, 2),
-        (2, "Cálculo Diferencial", 3, 4),
-        (2, "Matemáticas Discretas", 2, 2),
-        (2, "Física Electromagnética y Lab", 3, 4),
-        (2, "Inglés Básico I", 1, 2),
-        (2, "Filosofía", 2, 2),
-        (2, "Electiva I", 2, 2),
+        (2, "Programación Orientada a Objetos", 3, 4, "Ingeniería de Software y Programación"),
+        (2, "Arquitectura de Hardware", 3, 4, "Infraestructura, Redes y Hardware"),
+        (2, "Taller de Fundamentos de Investigación", 1, 2, "Investigación, Humanidades y Gestión"),
+        (2, "Cálculo Diferencial", 3, 4, "Ciencias Básicas y Matemáticas"),
+        (2, "Matemáticas Discretas", 2, 2, "Ciencias Básicas y Matemáticas"),
+        (2, "Física Electromagnética y Lab", 3, 4, "Ciencias Básicas y Matemáticas"),
+        (2, "Inglés Básico I", 1, 2, "Idiomas y Lenguas Extranjeras"),
+        (2, "Filosofía", 2, 2, "Investigación, Humanidades y Gestión"),
+        (2, "Electiva I", 2, 2, "Investigación, Humanidades y Gestión"),
 
         # Semestre 3 (8 Asignaturas - 19 Créditos)
-        (3, "Estructuras de Datos", 3, 4),
-        (3, "Análisis y Diseño del Software", 4, 4),
-        (3, "Infraestructura Tecnológica I", 3, 4),
-        (3, "Taller de Investigación Cualitativa", 1, 2),
-        (3, "Cálculo Integral", 3, 4),
-        (3, "Probabilidad y Estadística", 2, 2),
-        (3, "Inglés Básico II", 1, 2),
-        (3, "Electiva II", 2, 2),
+        (3, "Estructuras de Datos", 3, 4, "Ingeniería de Software y Programación"),
+        (3, "Análisis y Diseño del Software", 4, 4, "Ingeniería de Software y Programación"),
+        (3, "Infraestructura Tecnológica I", 3, 4, "Infraestructura, Redes y Hardware"),
+        (3, "Taller de Investigación Cualitativa", 1, 2, "Investigación, Humanidades y Gestión"),
+        (3, "Cálculo Integral", 3, 4, "Ciencias Básicas y Matemáticas"),
+        (3, "Probabilidad y Estadística", 2, 2, "Ciencias Básicas y Matemáticas"),
+        (3, "Inglés Básico II", 1, 2, "Idiomas y Lenguas Extranjeras"),
+        (3, "Electiva II", 2, 2, "Investigación, Humanidades y Gestión"),
 
         # Semestre 4 (9 Asignaturas - 20 Créditos)
-        (4, "Taller de Programación", 2, 2),
-        (4, "Patrones y Metodologías de la Construcción del Software", 3, 4),
-        (4, "Computación Gráfica", 2, 2),
-        (4, "Teoría de Bases de Datos", 4, 4),
-        (4, "Contabilidad General", 2, 2),
-        (4, "Taller de Investigación Cuantitativa", 1, 2),
-        (4, "Ecuaciones Diferenciales", 2, 2),
-        (4, "Cálculo Vectorial", 3, 4),
-        (4, "Inglés Pre-intermedio", 1, 2),
+        (4, "Taller de Programación", 2, 2, "Ingeniería de Software y Programación"),
+        (4, "Patrones y Metodologías de la Construcción del Software", 3, 4, "Ingeniería de Software y Programación"),
+        (4, "Computación Gráfica", 2, 2, "Ingeniería de Software y Programación"),
+        (4, "Teoría de Bases de Datos", 4, 4, "Ingeniería de Software y Programación"),
+        (4, "Contabilidad General", 2, 2, "Investigación, Humanidades y Gestión"),
+        (4, "Taller de Investigación Cuantitativa", 1, 2, "Investigación, Humanidades y Gestión"),
+        (4, "Ecuaciones Diferenciales", 2, 2, "Ciencias Básicas y Matemáticas"),
+        (4, "Cálculo Vectorial", 3, 4, "Ciencias Básicas y Matemáticas"),
+        (4, "Inglés Pre-intermedio", 1, 2, "Idiomas y Lenguas Extranjeras"),
     ]
 
     db_subjects = []
-    for sem_num, name, creds, hrs in curriculum_data:
+    for sem_num, name, creds, hrs, area in curriculum_data:
         sem_obj = db_semesters[sem_num - 1]
-        subj = Subject(name=name, credits=creds, hours_per_week=hrs, semester_id=sem_obj.id)
+        subj = Subject(name=name, credits=creds, hours_per_week=hrs, knowledge_area=area, semester_id=sem_obj.id)
         db.add(subj)
         db_subjects.append(subj)
     db.commit()
@@ -226,48 +226,46 @@ def create_data(force_reset=False):
         db_rooms.append(room)
     db.commit()
 
-    # 24 Colombian Teachers (8 Tiempo Completo, 8 Medio Tiempo, 8 Cátedra)
+    # 24 Colombian Teachers categorized into their exact academic area
+    teacher_definitions = [
+        # 1. Software & Programming (8 professors)
+        ("Carlos Andrés Restrepo Gómez", TeacherType.FULL_TIME, "Ingeniería de Software y Programación"),
+        ("Juan Camilo Osorio Morales", TeacherType.FULL_TIME, "Ingeniería de Software y Programación"),
+        ("Diego Fernando Caicedo Rengifo", TeacherType.FULL_TIME, "Ingeniería de Software y Programación"),
+        ("Julián David Bermúdez Garzón", TeacherType.FULL_TIME, "Ingeniería de Software y Programación"),
+        ("Óscar David Valencia Hurtado", TeacherType.PART_TIME, "Ingeniería de Software y Programación"),
+        ("Nathalia Sofía Barreto Chavarro", TeacherType.PART_TIME, "Ingeniería de Software y Programación"),
+        ("Rodrigo Alberto Salamanca Vaca", TeacherType.CATEDRA, "Ingeniería de Software y Programación"),
+        ("Hernando de Jesús Ospina Serna", TeacherType.CATEDRA, "Ingeniería de Software y Programación"),
+
+        # 2. Math & Sciences (6 professors)
+        ("María Fernanda Jaramillo Silva", TeacherType.FULL_TIME, "Ciencias Básicas y Matemáticas"),
+        ("Jorge Eliécer Mosquera Perea", TeacherType.FULL_TIME, "Ciencias Básicas y Matemáticas"),
+        ("Paola Andrea Quintero Castaño", TeacherType.PART_TIME, "Ciencias Básicas y Matemáticas"),
+        ("Sandra Milena Cuartas Zapata", TeacherType.PART_TIME, "Ciencias Básicas y Matemáticas"),
+        ("Javier Orlando Peñaloza Forero", TeacherType.CATEDRA, "Ciencias Básicas y Matemáticas"),
+        ("Mónica Patricia Castañeda Niño", TeacherType.CATEDRA, "Ciencias Básicas y Matemáticas"),
+
+        # 3. Infrastructure, Networks & Hardware (3 professors)
+        ("Andrés Felipe Betancur Echeverry", TeacherType.FULL_TIME, "Infraestructura, Redes y Hardware"),
+        ("Mauricio Alejandro Riaño Cuervo", TeacherType.PART_TIME, "Infraestructura, Redes y Hardware"),
+        ("Camilo Ernesto Villamizar Peña", TeacherType.CATEDRA, "Infraestructura, Redes y Hardware"),
+
+        # 4. Humanities, Research & Management (4 professors)
+        ("Claudia Patricia Henao Buendía", TeacherType.FULL_TIME, "Investigación, Humanidades y Gestión"),
+        ("Lina Marcela Vélez Londoño", TeacherType.PART_TIME, "Investigación, Humanidades y Gestión"),
+        ("Diana Carolina Gómez Montoya", TeacherType.PART_TIME, "Investigación, Humanidades y Gestión"),
+        ("Gloria Inés Rodríguez Pinzón", TeacherType.CATEDRA, "Investigación, Humanidades y Gestión"),
+
+        # 5. Languages & English (3 professors)
+        ("Ángela Viviana Cárdenas Rojas", TeacherType.FULL_TIME, "Idiomas y Lenguas Extranjeras"),
+        ("Gustavo Adolfo Palacios Murillo", TeacherType.PART_TIME, "Idiomas y Lenguas Extranjeras"),
+        ("Yolanda Esperanza Triviño Ruiz", TeacherType.CATEDRA, "Idiomas y Lenguas Extranjeras"),
+    ]
+
     db_teachers = []
-    teacher_types = [
-        TeacherType.FULL_TIME, TeacherType.FULL_TIME, TeacherType.FULL_TIME, TeacherType.FULL_TIME,
-        TeacherType.FULL_TIME, TeacherType.FULL_TIME, TeacherType.FULL_TIME, TeacherType.FULL_TIME,
-        TeacherType.PART_TIME, TeacherType.PART_TIME, TeacherType.PART_TIME, TeacherType.PART_TIME,
-        TeacherType.PART_TIME, TeacherType.PART_TIME, TeacherType.PART_TIME, TeacherType.PART_TIME,
-        TeacherType.CATEDRA, TeacherType.CATEDRA, TeacherType.CATEDRA, TeacherType.CATEDRA,
-        TeacherType.CATEDRA, TeacherType.CATEDRA, TeacherType.CATEDRA, TeacherType.CATEDRA
-    ]
-
-    teacher_names = [
-        "Carlos Andrés Restrepo Gómez",
-        "María Fernanda Jaramillo Silva",
-        "Juan Camilo Osorio Morales",
-        "Claudia Patricia Henao Buendía",
-        "Diego Fernando Caicedo Rengifo",
-        "Ángela Viviana Cárdenas Rojas",
-        "Jorge Eliécer Mosquera Perea",
-        "Andrés Felipe Betancur Echeverry",
-        "Lina Marcela Vélez Londoño",
-        "Gustavo Adolfo Palacios Murillo",
-        "Paola Andrea Quintero Castaño",
-        "Óscar David Valencia Hurtado",
-        "Diana Carolina Gómez Montoya",
-        "Mauricio Alejandro Riaño Cuervo",
-        "Nathalia Sofía Barreto Chavarro",
-        "Julián David Bermúdez Garzón",
-        "Hernando de Jesús Ospina Serna",
-        "Sandra Milena Cuartas Zapata",
-        "Camilo Ernesto Villamizar Peña",
-        "Gloria Inés Rodríguez Pinzón",
-        "Javier Orlando Peñaloza Forero",
-        "Yolanda Esperanza Triviño Ruiz",
-        "Rodrigo Alberto Salamanca Vaca",
-        "Mónica Patricia Castañeda Niño"
-    ]
-
-    for i in range(len(teacher_names)):
-        t_type = teacher_types[i]
-        t_name = teacher_names[i]
-        t = Teacher(name=t_name, teacher_type=t_type)
+    for t_name, t_type, t_area in teacher_definitions:
+        t = Teacher(name=t_name, teacher_type=t_type, knowledge_area=t_area)
         db.add(t)
         db.flush()
 
@@ -277,40 +275,35 @@ def create_data(force_reset=False):
         db_teachers.append(t)
     db.commit()
 
-    # Teacher Availabilities and Subject Preferences
+    # Teacher Availabilities and Subject Preferences strictly mapped by Knowledge Area
     days = list(DayOfWeek)
     for idx, t in enumerate(db_teachers):
-        # Configure rich availability per contract type
         for d in days:
             if d == DayOfWeek.SATURDAY:
                 avail_slots = [s for s in db_slots if s.shift in [ShiftType.MORNING, ShiftType.AFTERNOON] and s.end_time <= time(17, 0)]
             else:
                 if t.teacher_type == TeacherType.FULL_TIME:
-                    # Full time: broad availability across morning, afternoon and some night
                     avail_slots = db_slots
                 elif t.teacher_type == TeacherType.PART_TIME:
-                    # Part time: morning + afternoon or afternoon + night
                     if idx % 2 == 0:
                         avail_slots = [s for s in db_slots if s.shift in [ShiftType.MORNING, ShiftType.AFTERNOON]]
                     else:
                         avail_slots = [s for s in db_slots if s.shift in [ShiftType.AFTERNOON, ShiftType.NIGHT]]
                 else: # CATEDRA
-                    # Cátedra: night and morning/saturday
                     if idx % 2 == 0:
                         avail_slots = [s for s in db_slots if s.shift == ShiftType.NIGHT or s.shift == ShiftType.MORNING]
                     else:
                         avail_slots = [s for s in db_slots if s.shift in [ShiftType.NIGHT, ShiftType.AFTERNOON]]
 
-            # Add availabilities
-            sample_k = min(len(avail_slots), max(3, int(len(avail_slots) * 0.85)))
+            sample_k = min(len(avail_slots), max(3, int(len(avail_slots) * 0.90)))
             for slot in random.sample(avail_slots, k=sample_k):
                 avail = TeacherAvailability(teacher_id=t.id, day=d, time_slot_id=slot.id)
                 db.add(avail)
 
-        # Subject Preferences (each teacher prefers 4 to 8 subjects matching faculty domains)
-        preferred_subjs = random.sample(db_subjects, k=random.randint(4, 8))
-        for subj in preferred_subjs:
-            score = random.randint(3, 5) # 3: Normal, 4: Alta, 5: Muy Alta
+        # Subject Preferences: Assign ALL subjects matching teacher's knowledge area with high affinity (4 to 5)
+        matching_subjs = [s for s in db_subjects if s.knowledge_area == t.knowledge_area]
+        for subj in matching_subjs:
+            score = random.choice([4, 5]) # High affinity for domain subjects
             pref = TeacherSubjectPreference(teacher_id=t.id, subject_id=subj.id, preference_score=score)
             db.add(pref)
 
@@ -328,7 +321,22 @@ def create_data(force_reset=False):
                 break
 
         has_payment = (i % 7 == 0) # ~14% with payment agreement
-        is_regular = (i % 5 != 0)   # 80% regular/nivelado, 20% irregular
+        
+        # Realistic Academic Logic: Semester 1 students are newcomers and CANNOT be rezagados.
+        # Semesters 2, 3, 4: 80% are regular, 20% owe 1 or 2 specific subjects from previous semester.
+        if sem.id == 1:
+            is_regular = True
+            pending_ids_str = ""
+        else:
+            is_regular = (i % 5 != 0)
+            if not is_regular:
+                prev_subjs = [s for s in db_subjects if s.semester_id == sem.id - 1]
+                num_pending = 1 if (i % 2 == 0) else 2
+                chosen = random.sample(prev_subjs, min(num_pending, len(prev_subjs)))
+                pending_ids_str = ",".join(str(s.id) for s in chosen)
+            else:
+                pending_ids_str = ""
+
         enrolled = True
 
         student = Student(
@@ -336,7 +344,8 @@ def create_data(force_reset=False):
             semester_id=sem.id,
             has_payment_agreement=has_payment,
             is_enrolled=enrolled,
-            is_regular=is_regular
+            is_regular=is_regular,
+            pending_subject_ids=pending_ids_str
         )
         db.add(student)
         db.flush()
@@ -364,9 +373,32 @@ def create_data(force_reset=False):
         db.add(g2)
         db.add(g3)
     db.commit()
-    db.close()
 
-    print("Successfully generated official UMB dataset: 36 subjects, 108 shift-varied groups, 24 Colombian teachers, 120 Colombian students, 16 rooms, PBKDF2 hashed security!")
+    # Solve and populate initial optimal institutional schedule
+    print("Executing CP-SAT solver to generate initial area-consistent institutional timetable...")
+    from app.optimization.constraint_solver import ScheduleSolver
+    from app.database.models import ScheduleAssignment
+    try:
+        solver = ScheduleSolver(db, profile="balanced")
+        result = solver.solve(time_limit_seconds=15.0)
+        if result.get("status") == "SUCCESS":
+            for asg in result["assignments"]:
+                assignment = ScheduleAssignment(
+                    group_id=asg["group_id"],
+                    teacher_id=asg["teacher_id"],
+                    room_id=asg["room_id"],
+                    day=DayOfWeek(asg["day"]) if isinstance(asg["day"], str) else asg["day"],
+                    time_slot_id=asg["time_slot_id"]
+                )
+                db.add(assignment)
+            db.commit()
+            print(f"Generated {len(result['assignments'])} initial schedule assignments successfully!")
+    except Exception as e:
+        print("Warning: Initial schedule solve deferred:", e)
+    finally:
+        db.close()
+
+    print("Successfully generated official UMB dataset: 36 subjects, 108 shift-varied groups, 24 Colombian teachers with exact academic domains, 120 students, 16 rooms, PBKDF2 hashed security!")
 
 if __name__ == "__main__":
     create_data(force_reset=True)

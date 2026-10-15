@@ -126,10 +126,10 @@ class StudentScheduleOptimizer:
             }
 
         # 3. Score and rank each feasible combination
-        scored_options = []
+        combos_data = []
         for combo in feasible_combinations:
             total_slots = sum(len(g_info["slots"]) for _, _, g_info in combo)
-            
+
             # Metric A: Shift preference score
             matched_shift_slots = 0
             if preferred_shift:
@@ -141,45 +141,80 @@ class StudentScheduleOptimizer:
             else:
                 shift_score = 1.0
 
-            # Metric B: Day gaps & compact schedule score
-            days_used = set()
-            day_slot_counts = {}
+            # Metric B: Real gap detection (empty slots between first and last class per day)
+            day_slots = {}
             for _, _, g_info in combo:
                 for s in g_info["slots"]:
-                    d = s["day"]
-                    days_used.add(d)
-                    day_slot_counts[d] = day_slot_counts.get(d, 0) + 1
+                    day_slots.setdefault(s["day"], set()).add(s["time_slot_id"])
 
-            avg_classes_per_day = total_slots / len(days_used) if days_used else 1
-            compactness_score = min(1.0, avg_classes_per_day / 3.0)
+            total_gaps = 0
+            for d, slist in day_slots.items():
+                s_sorted = sorted(list(slist))
+                if len(s_sorted) > 1:
+                    total_gaps += (s_sorted[-1] - s_sorted[0] + 1) - len(s_sorted)
 
-            # Free days score (max 6 days)
-            free_days = 6 - len(days_used)
-            free_day_score = min(1.0, free_days / 3.0)
+            # Metric C: Free days score (out of 6 days Mon-Sat)
+            free_days = 6 - len(day_slots)
 
-            # Completeness penalty if subset
-            completeness_score = len(combo) / len(selected_subject_ids)
+            combos_data.append({
+                "combo": combo,
+                "total_slots": total_slots,
+                "shift_score": shift_score,
+                "total_gaps": total_gaps,
+                "free_days": free_days,
+                "days_used_count": len(day_slots),
+                "completeness_score": len(combo) / len(selected_subject_ids)
+            })
+
+        min_gaps = min(cd["total_gaps"] for cd in combos_data)
+        max_gaps = max(cd["total_gaps"] for cd in combos_data)
+        min_free = min(cd["free_days"] for cd in combos_data)
+        max_free = max(cd["free_days"] for cd in combos_data)
+
+        scored_options = []
+        for cd in combos_data:
+            # Normalized gap score:
+            # 1.0 if minimum possible gaps achieved; 0.0 if maximum possible gaps
+            if max_gaps > min_gaps:
+                gap_score = 1.0 - (cd["total_gaps"] - min_gaps) / (max_gaps - min_gaps)
+            else:
+                gap_score = 1.0 if cd["total_gaps"] == 0 else max(0.0, 1.0 - cd["total_gaps"] * 0.15)
+
+            # Normalized free days score:
+            # 1.0 if maximum possible free days achieved; 0.0 if minimum
+            if max_free > min_free:
+                free_day_score = (cd["free_days"] - min_free) / (max_free - min_free)
+            else:
+                free_day_score = 1.0 if cd["free_days"] > 0 else 0.5
 
             # Composite Score (0 - 100%)
             global_score = (
-                shift_score * shift_weight +
-                compactness_score * gap_weight +
+                cd["shift_score"] * shift_weight +
+                gap_score * gap_weight +
                 free_day_score * free_day_weight
-            ) * completeness_score * 100
+            ) * cd["completeness_score"] * 100
 
             scored_options.append({
                 "global_score": round(global_score, 1),
-                "shift_score": round(shift_score * 100, 1),
-                "compactness_score": round(compactness_score * 100, 1),
-                "free_days": free_days,
-                "days_used_count": len(days_used),
-                "subjects_included": len(combo),
+                "shift_score": round(cd["shift_score"] * 100, 1),
+                "compactness_score": round(gap_score * 100, 1),
+                "free_day_score": round(free_day_score * 100, 1),
+                "total_gaps": cd["total_gaps"],
+                "free_days": cd["free_days"],
+                "max_possible_free_days": max_free,
+                "min_possible_gaps": min_gaps,
+                "days_used_count": cd["days_used_count"],
+                "subjects_included": len(cd["combo"]),
                 "total_requested": len(selected_subject_ids),
-                "groups": combo
+                "groups": cd["combo"]
             })
 
-        # Sort by best score descending
-        scored_options.sort(key=lambda x: x["global_score"], reverse=True)
+        # Deterministic sorting
+        if free_day_weight >= gap_weight:
+            scored_options.sort(key=lambda x: (x["global_score"], x["free_days"], -x["total_gaps"]), reverse=True)
+        else:
+            scored_options.sort(key=lambda x: (x["global_score"], -x["total_gaps"], x["free_days"]), reverse=True)
+
         top_options = scored_options[:3]
 
         all_included = (top_options[0]["subjects_included"] == len(selected_subject_ids))

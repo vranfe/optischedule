@@ -18,7 +18,7 @@ class GlobalWheelFilter(QObject):
     """
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.Wheel:
-            if isinstance(obj, (QSpinBox, QDoubleSpinBox, QComboBox, QSlider, QDateEdit, QTimeEdit, QDateTimeEdit)):
+            if isinstance(obj, (QSpinBox, QDoubleSpinBox, QComboBox, QDateEdit, QTimeEdit, QDateTimeEdit)):
                 # If combobox dropdown popup is open, allow wheel navigation inside popup
                 if isinstance(obj, QComboBox) and obj.view() and obj.view().isVisible():
                     return False

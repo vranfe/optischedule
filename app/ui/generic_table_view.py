@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from app.database.database import get_db
 
 class GenericTableView(QWidget):
-    def __init__(self, title, headers, model_class, field_keys, enum_mappings=None):
+    def __init__(self, title, headers, model_class, field_keys, enum_mappings=None, read_only_keys=None):
         """
         Generic CRUD Table Widget.
         :param title: Display name of the entity (e.g., "Estudiantes", "Docentes")
@@ -17,6 +17,7 @@ class GenericTableView(QWidget):
         :param model_class: SQLAlchemy Model Class (e.g., Student, Teacher, Subject, Group, Room)
         :param field_keys: Model attribute names matching headers (e.g., ["id", "name", "semester_id", ...])
         :param enum_mappings: Optional dict of {field_name: enum_class} for Enum fields
+        :param read_only_keys: Optional list of field keys that are read-only (computed or uneditable)
         """
         super().__init__()
         self.title = title
@@ -24,6 +25,7 @@ class GenericTableView(QWidget):
         self.model_class = model_class
         self.field_keys = field_keys
         self.enum_mappings = enum_mappings or {}
+        self.read_only_keys = list(read_only_keys) if read_only_keys is not None else ["id"]
         self.raw_data = []
         self.is_loading = False
         
@@ -87,18 +89,19 @@ class GenericTableView(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(len(headers))
         self._apply_headers()
-        self.table.horizontalHeader().setHighlightSections(False)
-        self.table.setVerticalScrollMode(QTableWidget.ScrollPerItem)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table.setVerticalScrollMode(QTableWidget.ScrollPerPixel)
         self.table.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
         self.table.verticalHeader().setDefaultSectionSize(38)
         self.table.verticalHeader().setMinimumSectionSize(32)
         
-        # Smart Column Sizing: Compact ID, stretched name
+        # Smart Column Sizing: Compact ID, stretched name / descriptive cols
         for c_i in range(len(headers)):
             if c_i == 0:
                 self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-            elif c_i == 1:
-                self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+            elif c_i == 1 or (len(headers) > 4 and c_i == 2):
+                self.table.horizontalHeader().setSectionResizeMode(c_i, QHeaderView.Stretch)
             else:
                 self.table.horizontalHeader().setSectionResizeMode(c_i, QHeaderView.ResizeToContents)
 
@@ -196,15 +199,17 @@ class GenericTableView(QWidget):
         for row_idx, row_data in enumerate(filtered):
             for col_idx, col_data in enumerate(row_data):
                 item = QTableWidgetItem(str(col_data))
-                if col_idx == 0: # ID column is non-editable
+                key = self.field_keys[col_idx] if col_idx < len(self.field_keys) else ""
+                if key in self.read_only_keys:
                     item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                    item.setTextAlignment(Qt.AlignCenter)
-                    item.setForeground(QColor("#64748b"))
-                else:
-                    # Centered alignment for badges/status
-                    if any(badge_icon in str(col_data) for badge_icon in ["🟢", "🟡", "🔴", "✅", "❌", "📋", "💳"]):
+                    if col_idx == 0:
                         item.setTextAlignment(Qt.AlignCenter)
-                    item.setForeground(QColor("#000000"))
+                        item.setForeground(QColor("#64748b"))
+                if any(badge_icon in str(col_data) for badge_icon in ["🟢", "🟡", "🔴", "✅", "❌", "📋", "💳"]):
+                    item.setTextAlignment(Qt.AlignCenter)
+                else:
+                    if key not in self.read_only_keys or col_idx != 0:
+                        item.setForeground(QColor("#000000"))
                 self.table.setItem(row_idx, col_idx, item)
         self.is_loading = False
 
@@ -223,6 +228,8 @@ class GenericTableView(QWidget):
         try:
             record_id = int(id_item.text())
             field_name = self.field_keys[col]
+            if field_name in self.read_only_keys:
+                return
             new_val_str = item.text().strip()
 
             db = next(get_db())
@@ -288,7 +295,7 @@ class GenericTableView(QWidget):
         
         inputs = {}
         for idx, key in enumerate(self.field_keys):
-            if key == "id":
+            if key == "id" or key in self.read_only_keys:
                 continue
             curr_val = getattr(record, key, "")
             
@@ -357,7 +364,7 @@ class GenericTableView(QWidget):
         
         inputs = {}
         for idx, key in enumerate(self.field_keys):
-            if key == "id":
+            if key == "id" or key in self.read_only_keys:
                 continue
             
             if key in self.enum_mappings:

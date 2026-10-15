@@ -1,10 +1,10 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, 
     QTableWidgetItem, QHeaderView, QPushButton, QFrame,
-    QFileDialog, QMessageBox, QSlider
+    QFileDialog, QMessageBox, QSlider, QApplication, QScrollArea
 )
 from PySide6.QtGui import QColor, QFont
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 import csv
 from app.database.database import SessionLocal
 from app.database.models import Teacher, ScheduleAssignment, TimeSlot, DayOfWeek, ShiftType
@@ -19,8 +19,8 @@ class TeacherScheduleView(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(14)
+        layout.setContentsMargins(18, 18, 24, 30)
 
         # Header Card
         header_card = QFrame()
@@ -127,9 +127,6 @@ class TeacherScheduleView(QWidget):
         layout.addWidget(controls_card)
 
         # Table + Lateral Slider Container
-        table_container = QHBoxLayout()
-        table_container.setSpacing(8)
-
         # Timetable
         self.table = QTableWidget()
         self.days = [d.value for d in DayOfWeek]
@@ -138,6 +135,8 @@ class TeacherScheduleView(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setMinimumWidth(180)
         self.table.verticalHeader().setDefaultSectionSize(55)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.table.setMinimumHeight(470)
         self.table.setStyleSheet("""
             QTableWidget {
                 gridline-color: #cbd5e1;
@@ -154,55 +153,8 @@ class TeacherScheduleView(QWidget):
                 font-weight: bold;
             }
         """)
-        table_container.addWidget(self.table, 1)
-
-        # Lateral Navigation Slider Box
-        lateral_box = QVBoxLayout()
-        lateral_box.setSpacing(4)
-        lateral_box.setAlignment(Qt.AlignCenter)
-
-        top_icon = QLabel("☀️")
-        top_icon.setAlignment(Qt.AlignCenter)
-        top_icon.setStyleSheet("font-size: 12px;")
-
-        self.lateral_slider = QSlider(Qt.Vertical)
-        self.lateral_slider.setRange(0, 100)
-        self.lateral_slider.setValue(0)
-        self.lateral_slider.setInvertedAppearance(True)
-        self.lateral_slider.setFixedWidth(26)
-        self.lateral_slider.setCursor(Qt.PointingHandCursor)
-        self.lateral_slider.setToolTip("Desliza lateralmente para navegar por las franjas horarias")
-        self.lateral_slider.setStyleSheet("""
-            QSlider::groove:vertical {
-                background: #e2e8f0;
-                width: 10px;
-                border-radius: 5px;
-            }
-            QSlider::handle:vertical {
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4f46e5, stop:1 #3730a3);
-                height: 38px;
-                margin: 0 -5px;
-                border-radius: 7px;
-                border: 1.5px solid #ffffff;
-            }
-            QSlider::handle:vertical:hover {
-                background: #4338ca;
-            }
-        """)
-        self.lateral_slider.valueChanged.connect(self._on_lateral_slider_changed)
-        self.table.verticalScrollBar().rangeChanged.connect(self._sync_lateral_slider_range)
-        self.table.verticalScrollBar().valueChanged.connect(self._sync_lateral_slider_value)
-
-        bot_icon = QLabel("🌙")
-        bot_icon.setAlignment(Qt.AlignCenter)
-        bot_icon.setStyleSheet("font-size: 12px;")
-
-        lateral_box.addWidget(top_icon)
-        lateral_box.addWidget(self.lateral_slider, 1)
-        lateral_box.addWidget(bot_icon)
-
-        table_container.addLayout(lateral_box)
-        layout.addLayout(table_container)
+        self.table.installEventFilter(self)
+        layout.addWidget(self.table)
 
         # Breakdown table: Desglose de grupos y aulas
         breakdown_card = QFrame()
@@ -219,8 +171,7 @@ class TeacherScheduleView(QWidget):
         self.breakdown_table.setHorizontalHeaderLabels(["Asignatura", "Grupo", "Aula Asignada", "Horas Semanales", "Franja(s) Horaria(s)"])
         self.breakdown_table.horizontalHeader().setVisible(True)
         self.breakdown_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.breakdown_table.setMinimumHeight(130)
-        self.breakdown_table.setMaximumHeight(180)
+        self.breakdown_table.setMinimumHeight(180)
         self.breakdown_table.setStyleSheet("""
             QTableWidget {
                 gridline-color: #cbd5e1;
@@ -243,10 +194,21 @@ class TeacherScheduleView(QWidget):
                 border-right: 1px solid #334155;
             }
         """)
+        self.breakdown_table.installEventFilter(self)
         b_layout.addWidget(self.breakdown_table)
         layout.addWidget(breakdown_card)
-
+        layout.addSpacing(20)
         self.load_schedule()
+
+    def eventFilter(self, obj, event):
+        if obj in (getattr(self, "table", None), getattr(self, "breakdown_table", None)) and event.type() == QEvent.Type.Wheel:
+            parent_w = self.parent()
+            while parent_w and not isinstance(parent_w, QScrollArea):
+                parent_w = parent_w.parent()
+            if parent_w:
+                QApplication.sendEvent(parent_w.viewport(), event)
+                return True
+        return super().eventFilter(obj, event)
 
     def load_schedule(self):
         db = SessionLocal()

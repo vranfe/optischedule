@@ -15,7 +15,7 @@ class RulesView(QWidget):
     def init_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(18)
-        main_layout.setContentsMargins(15, 15, 15, 25)
+        main_layout.setContentsMargins(18, 18, 24, 80)
 
         # Header Card
         header_card = QFrame()
@@ -334,9 +334,30 @@ class RulesView(QWidget):
         self.dist_weight.setSingleStep(0.05)
         weights_grid.addWidget(self._create_input_block("📅 Distribución Semanal", "Separación regular de sesiones", self.dist_weight), 2, 0)
 
+        # Informative box to balance row 2
+        info_weight_box = QFrame()
+        info_weight_box.setStyleSheet("""
+            QFrame {
+                background-color: #eff6ff;
+                border: 1px solid #bfdbfe;
+                border-radius: 10px;
+                padding: 10px 14px;
+            }
+        """)
+        iw_layout = QVBoxLayout(info_weight_box)
+        iw_layout.setSpacing(4)
+        iw_title = QLabel("💡 Normalización de Pesos Multicriterio")
+        iw_title.setStyleSheet("font-size: 12px; font-weight: 800; color: #1e40af;")
+        iw_desc = QLabel("Los 5 coeficientes calibran la función objetivo de Google OR-Tools CP-SAT para equilibrar confort docente y uso de recursos.")
+        iw_desc.setWordWrap(True)
+        iw_desc.setStyleSheet("font-size: 11px; color: #3b82f6;")
+        iw_layout.addWidget(iw_title)
+        iw_layout.addWidget(iw_desc)
+        weights_grid.addWidget(info_weight_box, 2, 1)
+
         s_card_layout.addLayout(weights_grid)
         main_layout.addWidget(soft_card)
-        main_layout.addSpacing(30)
+        main_layout.addSpacing(60)
 
         self.load_config()
 

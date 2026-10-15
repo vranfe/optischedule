@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QCheckBox, QPushButton, 
     QComboBox, QMessageBox, QHeaderView, QFrame, QScrollArea, QLineEdit
 )
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtCore import Qt
 from app.database.database import SessionLocal
 from app.database.models import (
@@ -200,9 +201,9 @@ class PreferencesView(QWidget):
         pref_info_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px;")
         p_l = QHBoxLayout(pref_info_card)
         
-        lbl = QLabel("Asigna el nivel de preferencia de dictado para cada materia (1 = Baja, 5 = Muy Alta):")
-        lbl.setStyleSheet("color: #334155; font-size: 13px; font-weight: 600;")
-        p_l.addWidget(lbl)
+        self.pref_hint_lbl = QLabel("Asigna el nivel de preferencia de dictado para las asignaturas de tu enfoque disciplinar (1 = Baja, 5 = Muy Alta):")
+        self.pref_hint_lbl.setStyleSheet("color: #334155; font-size: 13px; font-weight: 600;")
+        p_l.addWidget(self.pref_hint_lbl)
         p_l.addStretch()
 
         self.pref_search = QLineEdit()
@@ -214,10 +215,11 @@ class PreferencesView(QWidget):
         pref_layout.addWidget(pref_info_card)
 
         self.pref_table = QTableWidget()
-        self.pref_table.setColumnCount(5)
-        self.pref_table.setHorizontalHeaderLabels(["ID", "Asignatura", "Semestre", "Horas Semanales", "Afinidad Docente"])
+        self.pref_table.setColumnCount(6)
+        self.pref_table.setHorizontalHeaderLabels(["ID", "Asignatura", "Área de Conocimiento", "Semestre", "Horas Semanales", "Afinidad Docente"])
         self.pref_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.pref_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.pref_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.pref_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.pref_table.verticalHeader().setDefaultSectionSize(42)
         pref_layout.addWidget(self.pref_table)
 
@@ -229,11 +231,13 @@ class PreferencesView(QWidget):
             if session.teacher_id:
                 curr = db.query(Teacher).filter_by(id=session.teacher_id).first()
                 if curr:
-                    self.teacher_selector.addItem(f"👤 {curr.name} ({curr.teacher_type.value})", curr.id)
+                    area_label = getattr(curr, "knowledge_area", "General")
+                    self.teacher_selector.addItem(f"👤 {curr.name} ({curr.teacher_type.value}) • 🏷️ {area_label}", curr.id)
                     self.teacher_selector.setEnabled(False)
             else:
                 for t in teachers:
-                    self.teacher_selector.addItem(f"👤 {t.name} ({t.teacher_type.value})", t.id)
+                    area_label = getattr(t, "knowledge_area", "General")
+                    self.teacher_selector.addItem(f"👤 {t.name} ({t.teacher_type.value}) • 🏷️ {area_label}", t.id)
                 self.teacher_selector.setEnabled(True)
         finally:
             db.close()
@@ -252,6 +256,7 @@ class PreferencesView(QWidget):
         try:
             teacher = db.query(Teacher).filter_by(id=teacher_id).first()
             is_full_time = (teacher and teacher.teacher_type == TeacherType.FULL_TIME)
+            teacher_area = getattr(teacher, "knowledge_area", None) if teacher else None
 
             self.ft_notice_card.setVisible(is_full_time)
             self.bar_card.setEnabled(not is_full_time)
@@ -303,8 +308,14 @@ class PreferencesView(QWidget):
                     self.avail_table.setCellWidget(r_idx, c_idx, cell_widget)
                     self.checkbox_map[(day_val, slot.id)] = cb
 
-            # Setup subject preferences table
-            subjects = db.query(Subject).all()
+            # Setup subject preferences table (filtered strictly by teacher's knowledge area)
+            if teacher_area:
+                subjects = db.query(Subject).filter_by(knowledge_area=teacher_area).all()
+                self.pref_hint_lbl.setText(f"Mostrando únicamente asignaturas de tu enfoque disciplinar: 🎯 <b>{teacher_area}</b>")
+            else:
+                subjects = db.query(Subject).all()
+                self.pref_hint_lbl.setText("Asigna el nivel de preferencia de dictado para las asignaturas (1 = Baja, 5 = Muy Alta):")
+
             self.pref_table.setRowCount(len(subjects))
 
             existing_prefs = {
@@ -322,13 +333,27 @@ class PreferencesView(QWidget):
                 name_item.setFont(self.pref_table.font())
                 self.pref_table.setItem(row_idx, 1, name_item)
 
+                # Knowledge Area Column
+                subj_area = getattr(subj, "knowledge_area", "General")
+                is_area_match = (teacher_area and subj_area == teacher_area)
+                area_text = f"🎯 {subj_area}" if is_area_match else subj_area
+                area_item = QTableWidgetItem(area_text)
+                area_item.setTextAlignment(Qt.AlignCenter)
+                if is_area_match:
+                    area_item.setBackground(QColor("#ecfdf5"))
+                    area_item.setForeground(QColor("#065f46"))
+                    font = area_item.font()
+                    font.setBold(True)
+                    area_item.setFont(font)
+                self.pref_table.setItem(row_idx, 2, area_item)
+
                 sem_item = QTableWidgetItem(f"Semestre {subj.semester_id}")
                 sem_item.setTextAlignment(Qt.AlignCenter)
-                self.pref_table.setItem(row_idx, 2, sem_item)
+                self.pref_table.setItem(row_idx, 3, sem_item)
 
                 hrs_item = QTableWidgetItem(f"{subj.hours_per_week} hrs/sem")
                 hrs_item.setTextAlignment(Qt.AlignCenter)
-                self.pref_table.setItem(row_idx, 3, hrs_item)
+                self.pref_table.setItem(row_idx, 4, hrs_item)
 
                 combo = QComboBox()
                 combo.setStyleSheet("font-weight: 700; color: #0f172a; padding: 4px 10px;")
@@ -338,10 +363,10 @@ class PreferencesView(QWidget):
                 combo.addItem("⭐⭐⭐⭐ 4 - Alta", 4)
                 combo.addItem("⭐⭐⭐⭐⭐ 5 - Muy Alta", 5)
                 
-                score = existing_prefs.get(subj.id, 3)
-                combo.setCurrentIndex(score - 1)
+                score = existing_prefs.get(subj.id, (5 if is_area_match else 1))
+                combo.setCurrentIndex(max(0, min(4, score - 1)))
 
-                self.pref_table.setCellWidget(row_idx, 4, combo)
+                self.pref_table.setCellWidget(row_idx, 5, combo)
                 self.pref_combos[subj.id] = (combo, subj.name)
         finally:
             db.close()
@@ -383,7 +408,13 @@ class PreferencesView(QWidget):
                     db.add(avail)
 
             # 2. Update Subject Preferences
-            db.query(TeacherSubjectPreference).filter_by(teacher_id=teacher_id).delete()
+            subj_ids_to_update = list(self.pref_combos.keys())
+            if subj_ids_to_update:
+                db.query(TeacherSubjectPreference).filter(
+                    TeacherSubjectPreference.teacher_id == teacher_id,
+                    TeacherSubjectPreference.subject_id.in_(subj_ids_to_update)
+                ).delete(synchronize_session=False)
+
             for subj_id, (combo, _) in self.pref_combos.items():
                 score = combo.currentData()
                 pref = TeacherSubjectPreference(teacher_id=teacher_id, subject_id=subj_id, preference_score=score)

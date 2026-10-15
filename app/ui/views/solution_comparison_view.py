@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QProgressBar, QScrollArea, QSlider, QComboBox
 )
 from PySide6.QtGui import QColor, QFont
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QEvent
 from sqlalchemy.orm import joinedload
 from app.database.database import get_db, SessionLocal
 from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot, Group, Teacher, Room, Subject
@@ -112,21 +112,25 @@ class SolutionComparisonView(QWidget):
         self.comp_table.setRowCount(len(self.metrics))
         self.comp_table.setVerticalHeaderLabels([m[0] for m in self.metrics])
         self.comp_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.comp_table.setMaximumHeight(230)
+        self.comp_table.setMinimumHeight(360)
+        self.comp_table.verticalHeader().setDefaultSectionSize(40)
+        self.comp_table.verticalHeader().setMinimumWidth(260)
+        self.comp_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.comp_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.comp_table.setStyleSheet("""
             QTableWidget {
                 gridline-color: #e2e8f0;
                 background-color: #ffffff;
                 color: #0f172a;
-                font-size: 12px;
+                font-size: 13px;
                 border: 1.5px solid #cbd5e1;
                 border-radius: 10px;
             }
             QHeaderView::section {
                 background-color: #1e293b;
                 color: #ffffff;
-                padding: 9px;
-                font-weight: 700;
+                padding: 10px;
+                font-weight: 800;
                 border: none;
                 border-right: 1px solid #334155;
             }
@@ -255,6 +259,7 @@ class SolutionComparisonView(QWidget):
         self.lateral_slider.valueChanged.connect(self._on_lateral_slider_changed)
         self.schedule_table.verticalScrollBar().rangeChanged.connect(self._sync_lateral_slider_range)
         self.schedule_table.verticalScrollBar().valueChanged.connect(self._sync_lateral_slider_value)
+        self.lateral_slider.installEventFilter(self)
 
         bot_icon = QLabel("🌙")
         bot_icon.setAlignment(Qt.AlignCenter)
@@ -288,6 +293,8 @@ class SolutionComparisonView(QWidget):
                 subj = a.group.subject if a.group else None
                 assignments_list.append({
                     "group_id": a.group_id,
+                    "teacher_id": a.teacher_id,
+                    "room_id": a.room_id,
                     "subject_name": subj.name if subj else "",
                     "group_name": a.group.name if a.group else "",
                     "teacher_name": a.teacher.name if a.teacher else "",
@@ -447,11 +454,24 @@ class SolutionComparisonView(QWidget):
                 text_val = f"{val}%" if "score" in key and isinstance(val, (int, float)) else str(val)
                 item = QTableWidgetItem(text_val)
                 item.setTextAlignment(Qt.AlignCenter)
+                font = item.font()
+                font.setPointSize(11)
                 if key == "status":
-                    item.setForeground(Qt.darkGreen if "FACTIBLE" in str(val) and "NO" not in str(val) else Qt.red)
+                    is_ok = ("FACTIBLE" in str(val) and "NO" not in str(val))
+                    item.setForeground(QColor("#047857") if is_ok else QColor("#dc2626"))
+                    font.setBold(True)
+                elif key == "hard_constraint_violations":
+                    item.setForeground(QColor("#047857") if val == 0 else QColor("#dc2626"))
+                    font.setBold(True)
                 elif key == "global_score":
-                    item.setForeground(Qt.black)
-                    item.setBackground(Qt.yellow if is_best else Qt.white)
+                    item.setForeground(QColor("#065f46") if is_best else QColor("#1e3a8a"))
+                    item.setBackground(QColor("#ecfdf5") if is_best else QColor("#ffffff"))
+                    font.setBold(True)
+                    font.setPointSize(12)
+                else:
+                    item.setForeground(QColor("#0f172a"))
+                    font.setBold(True)
+                item.setFont(font)
                 self.comp_table.setItem(row_idx, col_idx, item)
 
         if self.solutions:
@@ -460,6 +480,15 @@ class SolutionComparisonView(QWidget):
     def _view_solution(self, sol):
         self.select_solution(sol)
         self.preview_solution_modal(sol)
+
+    def eventFilter(self, obj, event):
+        if obj == getattr(self, "lateral_slider", None) and event.type() == QEvent.Type.Wheel:
+            delta = event.angleDelta().y()
+            step = 1 if delta < 0 else -1
+            sb = self.schedule_table.verticalScrollBar()
+            sb.setValue(sb.value() + step)
+            return True
+        return super().eventFilter(obj, event)
 
     def _on_lateral_slider_changed(self, value):
         self.schedule_table.verticalScrollBar().setValue(value)
@@ -608,10 +637,21 @@ class SolutionComparisonView(QWidget):
             try:
                 db.query(ScheduleAssignment).delete()
                 for asg in solution["assignments"]:
+                    t_id = asg.get("teacher_id")
+                    r_id = asg.get("room_id")
+                    if not t_id or not r_id:
+                        g = db.query(Group).filter_by(id=asg["group_id"]).first()
+                        if not t_id:
+                            pref = db.query(TeacherSubjectPreference).filter_by(subject_id=g.subject_id).first() if g else None
+                            t_id = pref.teacher_id if pref else 1
+                        if not r_id:
+                            r = db.query(Room).first()
+                            r_id = r.id if r else 1
+
                     assignment = ScheduleAssignment(
                         group_id=asg["group_id"],
-                        teacher_id=asg["teacher_id"],
-                        room_id=asg["room_id"],
+                        teacher_id=t_id,
+                        room_id=r_id,
                         day=DayOfWeek(asg["day"]) if isinstance(asg["day"], str) else asg["day"],
                         time_slot_id=asg["time_slot_id"]
                     )

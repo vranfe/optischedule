@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt
 from app.auth.session import session
 from app.auth.auth_service import AuthService
 from app.database.database import SessionLocal
-from app.database.models import UserRole, Student, Teacher, Subject, Room, Group, TeacherType, Config
+from app.database.models import UserRole, Student, Teacher, Subject, Room, Group, TeacherType, Config, KnowledgeArea
 from app.ui.views.login_view import LoginView
 from app.ui.views.dashboard_view import DashboardView
 from app.ui.views.workload_view import WorkloadView
@@ -17,7 +17,6 @@ from app.ui.views.teacher_schedule_view import TeacherScheduleView
 from app.ui.views.student_schedule_view import StudentScheduleView
 from app.ui.views.student_preferences_view import StudentPreferencesView
 from app.ui.schedule_view import ScheduleView
-from app.ui.results_view import ResultsView
 from app.ui.generic_table_view import GenericTableView
 
 class MainWindow(QMainWindow):
@@ -129,29 +128,6 @@ class MainWindow(QMainWindow):
         # Navigation menu
         self.menu_list = QListWidget()
         self.sidebar_layout.addWidget(self.menu_list, 1)
-
-        # Sidebar Footer Logout Button (Always anchored and styled)
-        self.logout_btn = QPushButton("🚪 Cerrar Sesión")
-        self.logout_btn.setCursor(Qt.PointingHandCursor)
-        self.logout_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f43f5e;
-                color: #ffffff;
-                font-weight: 800;
-                font-size: 13px;
-                padding: 11px;
-                border-radius: 10px;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #e11d48;
-            }
-            QPushButton:pressed {
-                background-color: #be123c;
-            }
-        """)
-        self.logout_btn.clicked.connect(self.logout)
-        self.sidebar_layout.addWidget(self.logout_btn)
 
         # -------------------------------------------------------------
         # Main Area: Top Navbar + Content Stack (Animated)
@@ -311,7 +287,7 @@ class MainWindow(QMainWindow):
 
             if role == UserRole.ADMIN:
                 dashboard_view = DashboardView(nav_callback=self.navigate_to)
-                schedule_view = ScheduleView()
+                schedule_view = ScheduleView(nav_callback=self.navigate_to)
                 comparison_view = SolutionComparisonView()
 
                 # Live signal connection: applying a solution updates schedule and dashboard in real time
@@ -325,7 +301,6 @@ class MainWindow(QMainWindow):
                     ("📈 Carga y Subcarga Docente", WorkloadView()),
                     ("⚙️ Reglas y Calendario", RulesView()),
                     ("📝 Preferencias Docentes", PreferencesView()),
-                    ("🎯 Evaluación y Métricas", ResultsView()),
                     ("🎓 Estudiantes (CRUD)", GenericTableView(
                         "Estudiantes", 
                         ["ID Estudiante", "Nombre Completo", "Semestre", "Nivelación", "Estado Matrícula", "Acuerdo de Pago"],
@@ -333,19 +308,22 @@ class MainWindow(QMainWindow):
                     )),
                     ("👨‍🏫 Docentes (CRUD)", GenericTableView(
                         "Docentes", 
-                        ["ID Docente", "Nombre Docente", "Modalidad Contractual"],
-                        Teacher, ["id", "name", "teacher_type"],
-                        enum_mappings={"teacher_type": TeacherType}
+                        ["ID Docente", "Nombre Docente", "Modalidad Contractual", "Área de Conocimiento"],
+                        Teacher, ["id", "name", "teacher_type", "knowledge_area"],
+                        enum_mappings={"teacher_type": TeacherType, "knowledge_area": KnowledgeArea}
                     )),
                     ("📚 Asignaturas (CRUD)", GenericTableView(
                         "Asignaturas", 
-                        ["ID Asignatura", "Nombre de la Materia", "Créditos", "Horas Semanales", "Semestre Malla"],
-                        Subject, ["id", "name", "credits", "hours_per_week", "semester_id"]
+                        ["ID Asignatura", "Nombre de la Materia", "Créditos", "Horas Semanales", "Semestre Malla", "Área Académica"],
+                        Subject, ["id", "name", "credits", "hours_per_week", "semester_id", "knowledge_area"],
+                        enum_mappings={"knowledge_area": KnowledgeArea}
                     )),
                     ("👥 Grupos (CRUD)", GenericTableView(
                         "Grupos", 
-                        ["ID Grupo", "Código de Grupo", "ID Asignatura", "Estudiantes Estimados"],
-                        Group, ["id", "name", "subject_id", "expected_students"]
+                        ["ID", "Código de Grupo", "Asignatura", "ID Materia", "Capacidad Aula", "Inscritos Reales", "Disponibilidad"],
+                        Group, 
+                        ["id", "name", "subject_name", "subject_id", "max_capacity", "enrolled_count", "availability_status"],
+                        read_only_keys=["id", "subject_name", "max_capacity", "enrolled_count", "availability_status"]
                     )),
                     ("📍 Aulas (CRUD)", GenericTableView(
                         "Aulas", 
@@ -358,15 +336,13 @@ class MainWindow(QMainWindow):
                 views = [
                     ("📅 Mi Horario Asignado", TeacherScheduleView()),
                     ("📝 Disponibilidad y Afinidad", PreferencesView()),
-                    ("📈 Mi Carga Laboral", WorkloadView()),
-                    ("🚪 Cerrar Sesión", QWidget())
+                    ("📈 Mi Carga Laboral", WorkloadView())
                 ]
 
             elif role == UserRole.STUDENT:
                 views = [
                     ("📅 Mi Horario Semestral", StudentScheduleView()),
-                    ("☀️ Preferencia de Jornada", StudentPreferencesView()),
-                    ("🚪 Cerrar Sesión", QWidget())
+                    ("☀️ Preferencia de Jornada", StudentPreferencesView())
                 ]
 
             else:
@@ -374,7 +350,7 @@ class MainWindow(QMainWindow):
 
             for title, widget in views:
                 self.menu_list.addItem(title)
-                if isinstance(widget, (RulesView, PreferencesView, StudentPreferencesView)):
+                if isinstance(widget, (RulesView, PreferencesView, StudentPreferencesView, TeacherScheduleView, SolutionComparisonView, ScheduleView)):
                     scroll = QScrollArea()
                     scroll.setWidgetResizable(True)
                     scroll.setFrameShape(QFrame.NoFrame)

@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QFrame, QComboBox, QSlider
 )
 from PySide6.QtGui import QColor, QFont
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 import csv
 from app.database.database import SessionLocal
 from app.database.models import ScheduleAssignment, DayOfWeek, TimeSlot, Group, Teacher, Room, ShiftType
@@ -12,8 +12,9 @@ from app.ui.workers.solver_worker import SolverWorker
 from app.ui.excel_exporter import export_schedule_dialog
 
 class ScheduleView(QWidget):
-    def __init__(self):
+    def __init__(self, nav_callback=None):
         super().__init__()
+        self.nav_callback = nav_callback
         self.worker = None
         self.base_row_height = 50
         self.init_ui()
@@ -82,11 +83,28 @@ class ScheduleView(QWidget):
         self.export_btn.clicked.connect(self.export_csv)
         btn_layout.addWidget(self.export_btn)
 
-        self.generate_btn = QPushButton("⚡ GENERAR HORARIO ÓPTIMO")
+        self.modal_btn = QPushButton("🔍 Ver en Pantalla Completa")
+        self.modal_btn.setCursor(Qt.PointingHandCursor)
+        self.modal_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7; 
+                color: white; 
+                font-weight: bold; 
+                padding: 9px 16px; 
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #0369a1;
+            }
+        """)
+        self.modal_btn.clicked.connect(self.open_modal_schedule)
+        btn_layout.addWidget(self.modal_btn)
+
+        self.generate_btn = QPushButton("⚖️ Explorar y Generar en Comparar Soluciones")
         self.generate_btn.setCursor(Qt.PointingHandCursor)
         self.generate_btn.setStyleSheet("""
             QPushButton {
-                background-color: #10b981; 
+                background-color: #4f46e5; 
                 color: white; 
                 font-weight: 800; 
                 padding: 9px 18px;
@@ -94,13 +112,13 @@ class ScheduleView(QWidget):
                 font-size: 13px;
             }
             QPushButton:hover {
-                background-color: #059669;
+                background-color: #4338ca;
             }
             QPushButton:disabled {
                 background-color: #94a3b8;
             }
         """)
-        self.generate_btn.clicked.connect(self.start_generation)
+        self.generate_btn.clicked.connect(self.on_generate_clicked)
         btn_layout.addWidget(self.generate_btn)
         
         header.addLayout(btn_layout)
@@ -200,6 +218,7 @@ class ScheduleView(QWidget):
         self.lateral_slider.valueChanged.connect(self._on_lateral_slider_changed)
         self.table.verticalScrollBar().rangeChanged.connect(self._sync_lateral_slider_range)
         self.table.verticalScrollBar().valueChanged.connect(self._sync_lateral_slider_value)
+        self.lateral_slider.installEventFilter(self)
 
         bot_icon = QLabel("🌙")
         bot_icon.setAlignment(Qt.AlignCenter)
@@ -218,6 +237,21 @@ class ScheduleView(QWidget):
         self.layout.addLayout(table_container)
         
         self.load_schedule()
+
+    def eventFilter(self, obj, event):
+        if obj == getattr(self, "lateral_slider", None) and event.type() == QEvent.Type.Wheel:
+            delta = event.angleDelta().y()
+            step = 1 if delta < 0 else -1
+            sb = self.table.verticalScrollBar()
+            sb.setValue(sb.value() + step)
+            return True
+        return super().eventFilter(obj, event)
+
+    def on_generate_clicked(self):
+        if self.nav_callback:
+            self.nav_callback("Comparar Soluciones")
+        else:
+            self.start_generation()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -425,4 +459,49 @@ class ScheduleView(QWidget):
             assignments,
             title="Matriz Institucional de Horarios UMB"
         )
+
+    def open_modal_schedule(self):
+        db = SessionLocal()
+        try:
+            raw_assignments = db.query(ScheduleAssignment).all()
+            assignments = []
+            for asg in raw_assignments:
+                slot = asg.time_slot
+                group = asg.group
+                subj = group.subject if group else None
+                teacher = asg.teacher
+                room = asg.room
+                day_val = asg.day.value if hasattr(asg.day, "value") else str(asg.day)
+                assignments.append({
+                    "id": asg.id,
+                    "time_slot_id": asg.time_slot_id,
+                    "group_id": asg.group_id,
+                    "teacher_id": asg.teacher_id,
+                    "room_id": asg.room_id,
+                    "day": day_val,
+                    "shift": slot.shift.value if slot and hasattr(slot.shift, "value") else (str(slot.shift) if slot else ""),
+                    "start_time": slot.start_time.strftime('%H:%M') if slot and slot.start_time else "",
+                    "end_time": slot.end_time.strftime('%H:%M') if slot and slot.end_time else "",
+                    "subject_name": subj.name if subj else "",
+                    "semester": subj.semester_id if subj else None,
+                    "group_name": group.name if group else "",
+                    "teacher_name": teacher.name if teacher else "",
+                    "room_name": room.name if room else ""
+                })
+        finally:
+            db.close()
+
+        if not assignments:
+            QMessageBox.warning(self, "Aviso", "No hay ningún horario institucional generado para visualizar.")
+            return
+
+        from app.ui.dialogs.schedule_preview_dialog import SchedulePreviewDialog
+        dialog = SchedulePreviewDialog(
+            title_text="Horario Institucional Completo UMB",
+            assignments_data=assignments,
+            metrics={"global_score": 100},
+            parent=self
+        )
+        dialog.exec()
+
 

@@ -8,17 +8,13 @@ echo       Sistema Inteligente de Optimizacion y Asignacion de Horarios
 echo ===============================================================================
 echo.
 
-if not exist ".venv\Scripts\python.exe" (
-    echo [ERROR] No se encontro el entorno virtual en .venv.
-    echo Creando entorno virtual e instalando dependencias...
-    python -m venv .venv
-    .\.venv\Scripts\python.exe -m pip install --upgrade pip
-    .\.venv\Scripts\pip.exe install -r requirements.txt
+if exist ".venv\Scripts\python.exe" (
+    echo [OK] Iniciando OptiSchedule UMB con entorno virtual .venv...
+    .\.venv\Scripts\python.exe main.py
+) else (
+    echo [OK] Iniciando OptiSchedule UMB con Python del sistema...
+    python main.py
 )
-
-echo [OK] Iniciando OptiSchedule UMB con el entorno virtual del proyecto...
-echo.
-.\.venv\Scripts\python.exe main.py
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

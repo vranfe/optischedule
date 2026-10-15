@@ -11,7 +11,7 @@ from datetime import datetime
 from app.database.database import SessionLocal
 from app.database.models import (
     Student, ScheduleAssignment, TimeSlot, DayOfWeek, Subject, ShiftType, 
-    StudentEnrollment, StudentPreference, Config
+    StudentEnrollment, StudentPreference, Config, Group
 )
 from app.optimization.student_optimizer import StudentScheduleOptimizer
 from app.auth.session import session
@@ -110,6 +110,7 @@ class StudentScheduleView(QWidget):
         self.timetable_tab = QWidget()
         self.setup_timetable_tab()
         self.tabs.addTab(self.timetable_tab, "📅 Mi Horario Oficial Inscrito")
+        self.tabs.currentChanged.connect(self._on_tab_changed)
 
         layout.addWidget(self.tabs)
         self.load_data()
@@ -169,59 +170,60 @@ class StudentScheduleView(QWidget):
         pref_layout = QVBoxLayout(pref_group)
         pref_layout.setSpacing(10)
 
-        # Shift Selector
-        shift_label = QLabel("<b>Jornada Preferida:</b>")
-        shift_label.setStyleSheet("color: #0f172a; font-size: 12px;")
-        pref_layout.addWidget(shift_label)
+        # Registered Shift Info Card (Loaded from StudentPreferences)
+        self.shift_info_card = QFrame()
+        self.shift_info_card.setStyleSheet("""
+            QFrame {
+                background-color: #f8fafc;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 8px;
+                padding: 10px 14px;
+            }
+        """)
+        shift_info_layout = QVBoxLayout(self.shift_info_card)
+        shift_info_layout.setSpacing(4)
 
-        shift_grid = QGridLayout()
-        self.shift_btn_group = QButtonGroup(self)
+        self.registered_shift_lbl = QLabel("☀️ Jornada Registrada: <b>Cargando...</b>")
+        self.registered_shift_lbl.setStyleSheet("font-size: 13px; font-weight: 700; color: #1e3a8a;")
+        shift_info_layout.addWidget(self.registered_shift_lbl)
 
-        self.rb_morning = QRadioButton("☀️ Mañana (08:00 - 12:00)")
-        self.rb_afternoon = QRadioButton("⛅ Tarde (13:00 - 17:00)")
-        self.rb_night = QRadioButton("🌙 Noche (18:00 - 22:00)")
-        self.rb_any = QRadioButton("🌐 Cualquiera")
-        
-        for rb in [self.rb_morning, self.rb_afternoon, self.rb_night, self.rb_any]:
-            rb.setStyleSheet("color: #0f172a; font-weight: 700; font-size: 12px;")
+        shift_hint = QLabel("💡 Tu jornada preferida se gestiona en <i>☀️ Preferencia de Jornada</i>. Aquí defines cuánto ponderarla frente a huecos y días libres.")
+        shift_hint.setStyleSheet("font-size: 11px; color: #64748b;")
+        shift_hint.setWordWrap(True)
+        shift_info_layout.addWidget(shift_hint)
 
-        self.rb_morning.setChecked(True)
+        pref_layout.addWidget(self.shift_info_card)
 
-        self.shift_btn_group.addButton(self.rb_morning, 1)
-        self.shift_btn_group.addButton(self.rb_afternoon, 2)
-        self.shift_btn_group.addButton(self.rb_night, 3)
-        self.shift_btn_group.addButton(self.rb_any, 0)
-
-        shift_grid.addWidget(self.rb_morning, 0, 0)
-        shift_grid.addWidget(self.rb_afternoon, 0, 1)
-        shift_grid.addWidget(self.rb_night, 1, 0)
-        shift_grid.addWidget(self.rb_any, 1, 1)
-        pref_layout.addLayout(shift_grid)
-
-        # Sliders for priorities
+        # Sliders for priorities (strictly auto-balanced to 100%)
         weights_container = QVBoxLayout()
         weights_container.setSpacing(8)
 
+        # Total Balance Badge
+        balance_row = QHBoxLayout()
+        self.lbl_total_w_badge = QLabel("⚖️ Balance Total: 100% (Coherente)")
+        self.lbl_total_w_badge.setStyleSheet("font-size: 11px; font-weight: 800; color: #047857; background-color: #ecfdf5; padding: 4px 10px; border-radius: 6px; border: 1px solid #a7f3d0;")
+        balance_row.addWidget(self.lbl_total_w_badge)
+        balance_row.addStretch()
+        weights_container.addLayout(balance_row)
+
         # Slider 1: Shift Priority
         s1_row = QHBoxLayout()
-        self.lbl_shift_w = QLabel("Prioridad de Jornada: <b>50%</b>")
-        self.lbl_shift_w.setStyleSheet("color: #1e293b;")
+        self.lbl_shift_w = QLabel("Prioridad de Jornada: <b>40%</b>")
+        self.lbl_shift_w.setStyleSheet("color: #1e293b; font-size: 12px;")
         self.shift_weight_slider = QSlider(Qt.Horizontal)
         self.shift_weight_slider.setRange(0, 100)
-        self.shift_weight_slider.setValue(50)
-        self.shift_weight_slider.valueChanged.connect(lambda v: self.lbl_shift_w.setText(f"Prioridad de Jornada: <b>{v}%</b>"))
+        self.shift_weight_slider.setValue(40)
         s1_row.addWidget(self.lbl_shift_w, 2)
         s1_row.addWidget(self.shift_weight_slider, 3)
         weights_container.addLayout(s1_row)
 
         # Slider 2: Minimize Gaps
         s2_row = QHBoxLayout()
-        self.lbl_gap_w = QLabel("Minimizar Huecos / Ventanas: <b>30%</b>")
-        self.lbl_gap_w.setStyleSheet("color: #1e293b;")
+        self.lbl_gap_w = QLabel("Minimizar Huecos / Ventanas: <b>40%</b>")
+        self.lbl_gap_w.setStyleSheet("color: #1e293b; font-size: 12px;")
         self.gap_weight_slider = QSlider(Qt.Horizontal)
         self.gap_weight_slider.setRange(0, 100)
-        self.gap_weight_slider.setValue(30)
-        self.gap_weight_slider.valueChanged.connect(lambda v: self.lbl_gap_w.setText(f"Minimizar Huecos / Ventanas: <b>{v}%</b>"))
+        self.gap_weight_slider.setValue(40)
         s2_row.addWidget(self.lbl_gap_w, 2)
         s2_row.addWidget(self.gap_weight_slider, 3)
         weights_container.addLayout(s2_row)
@@ -229,14 +231,18 @@ class StudentScheduleView(QWidget):
         # Slider 3: Maximize Free Days
         s3_row = QHBoxLayout()
         self.lbl_free_w = QLabel("Maximizar Días Libres: <b>20%</b>")
-        self.lbl_free_w.setStyleSheet("color: #1e293b;")
+        self.lbl_free_w.setStyleSheet("color: #1e293b; font-size: 12px;")
         self.free_weight_slider = QSlider(Qt.Horizontal)
         self.free_weight_slider.setRange(0, 100)
         self.free_weight_slider.setValue(20)
-        self.free_weight_slider.valueChanged.connect(lambda v: self.lbl_free_w.setText(f"Maximizar Días Libres: <b>{v}%</b>"))
         s3_row.addWidget(self.lbl_free_w, 2)
         s3_row.addWidget(self.free_weight_slider, 3)
         weights_container.addLayout(s3_row)
+
+        # Connect dynamic auto-balancing signals
+        self.shift_weight_slider.valueChanged.connect(lambda: self._on_weight_slider_changed(self.shift_weight_slider))
+        self.gap_weight_slider.valueChanged.connect(lambda: self._on_weight_slider_changed(self.gap_weight_slider))
+        self.free_weight_slider.valueChanged.connect(lambda: self._on_weight_slider_changed(self.free_weight_slider))
 
         pref_layout.addLayout(weights_container)
 
@@ -422,6 +428,12 @@ class StudentScheduleView(QWidget):
         t_header.addWidget(t_title)
         t_header.addStretch()
 
+        refresh_official_btn = QPushButton("🔄 Actualizar Horario")
+        refresh_official_btn.setCursor(Qt.PointingHandCursor)
+        refresh_official_btn.setStyleSheet("background-color: #4f46e5; color: white; font-weight: bold; padding: 8px 16px; border-radius: 7px;")
+        refresh_official_btn.clicked.connect(self.load_official_schedule)
+        t_header.addWidget(refresh_official_btn)
+
         export_btn = QPushButton("📥 Exportar Mi Horario (CSV)")
         export_btn.setCursor(Qt.PointingHandCursor)
         export_btn.setStyleSheet("background-color: #0284c7; color: white; font-weight: bold; padding: 8px 16px; border-radius: 7px;")
@@ -530,14 +542,133 @@ class StudentScheduleView(QWidget):
         self.official_lateral_slider.setValue(value)
         self.official_lateral_slider.blockSignals(False)
 
+    def _on_tab_changed(self, index):
+        if index == 1:
+            self.load_official_schedule()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if hasattr(self, "tabs") and self.tabs.currentIndex() == 1:
+            self.load_official_schedule()
+
+    def _on_weight_slider_changed(self, active_slider):
+        if getattr(self, "_is_balancing_sliders", False):
+            return
+        self._is_balancing_sliders = True
+        try:
+            val = active_slider.value()
+            remaining = 100 - val
+            sliders = [
+                self.shift_weight_slider,
+                self.gap_weight_slider,
+                self.free_weight_slider
+            ]
+            others = [s for s in sliders if s is not active_slider]
+            s1, s2 = others[0], others[1]
+            sum_others = s1.value() + s2.value()
+
+            if sum_others > 0:
+                new_v1 = int(round(remaining * (s1.value() / sum_others)))
+                new_v2 = remaining - new_v1
+            else:
+                new_v1 = remaining // 2
+                new_v2 = remaining - new_v1
+
+            new_v1 = max(0, min(100, new_v1))
+            new_v2 = max(0, min(100, new_v2))
+
+            s1.blockSignals(True)
+            s2.blockSignals(True)
+            s1.setValue(new_v1)
+            s2.setValue(new_v2)
+            s1.blockSignals(False)
+            s2.blockSignals(False)
+
+            self.lbl_shift_w.setText(f"Prioridad de Jornada: <b>{self.shift_weight_slider.value()}%</b>")
+            self.lbl_gap_w.setText(f"Minimizar Huecos / Ventanas: <b>{self.gap_weight_slider.value()}%</b>")
+            self.lbl_free_w.setText(f"Maximizar Días Libres: <b>{self.free_weight_slider.value()}%</b>")
+
+            total_sum = self.shift_weight_slider.value() + self.gap_weight_slider.value() + self.free_weight_slider.value()
+            self.lbl_total_w_badge.setText(f"⚖️ Balance Total: {total_sum}% (Coherente)")
+        finally:
+            self._is_balancing_sliders = False
+
+    def on_subject_state_changed(self):
+        pending_ids = getattr(self, "pending_subject_ids", set())
+        current_ids = getattr(self, "current_sem_subject_ids", set())
+        cards = getattr(self, "subject_cards", {})
+
+        if pending_ids:
+            # Condition: ALL pending subjects must be checked to lift the current semester lock!
+            all_pending_checked = all(
+                self.subject_checkboxes[pid].isChecked()
+                for pid in pending_ids if pid in self.subject_checkboxes
+            )
+
+            for cid in current_ids:
+                if cid in cards:
+                    card_frame, cb, badge, subj = cards[cid]
+                    if all_pending_checked:
+                        # Unlock! Prerequisite condition satisfied
+                        cb.setEnabled(True)
+                        card_frame.setStyleSheet("""
+                            QFrame {
+                                background-color: #ffffff; 
+                                border: 1px solid #e2e8f0; 
+                                border-radius: 7px; 
+                                padding: 6px 10px;
+                            }
+                            QFrame:hover {
+                                border-color: #6366f1;
+                                background-color: #f5f3ff;
+                            }
+                        """)
+                        cb.setStyleSheet("font-weight: 700; color: #1e3a8a;")
+                        badge.setText(f"{subj.credits} cr • {subj.hours_per_week}h • Sem {subj.semester_id}")
+                        badge.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b; background-color: #f1f5f9; padding: 2px 8px; border-radius: 4px;")
+                        cb.setToolTip("Asignatura habilitada: Cumples con el requisito de matricular todas tus materias pendientes.")
+                    else:
+                        # Lock! Prerequisite condition not satisfied
+                        cb.blockSignals(True)
+                        cb.setChecked(False)
+                        cb.setEnabled(False)
+                        cb.blockSignals(False)
+                        card_frame.setStyleSheet("""
+                            QFrame {
+                                background-color: #f8fafc; 
+                                border: 1px dashed #cbd5e1; 
+                                border-radius: 7px; 
+                                padding: 6px 10px;
+                            }
+                        """)
+                        cb.setStyleSheet("font-weight: 600; color: #94a3b8;")
+                        badge.setText("🔒 Bloqueada (Debes matricular primero todas tus materias pendientes)")
+                        badge.setStyleSheet("font-size: 11px; font-weight: 700; color: #64748b; background-color: #f1f5f9; padding: 2px 8px; border-radius: 4px; border: 1px solid #e2e8f0;")
+                        cb.setToolTip("Inscripción no disponible: Para matricular materias del semestre actual debes tener seleccionadas todas tus materias pendientes.")
+
+        self.update_subject_count()
+
     def select_all_subjects(self):
+        # 1. First ensure all pending subjects are checked so current semester unlocks
+        pending_ids = getattr(self, "pending_subject_ids", set())
+        for pid in pending_ids:
+            if pid in self.subject_checkboxes:
+                self.subject_checkboxes[pid].setChecked(True)
+
+        self.on_subject_state_changed()
+
+        # 2. Check all enabled current semester subjects
         for cb in self.subject_checkboxes.values():
-            cb.setChecked(True)
+            if cb.isEnabled():
+                cb.setChecked(True)
         self.update_subject_count()
 
     def clear_all_subjects(self):
-        for cb in self.subject_checkboxes.values():
-            cb.setChecked(False)
+        # Uncheck current semester subjects, leaving pending subjects checked
+        current_ids = getattr(self, "current_sem_subject_ids", set())
+        for cid in current_ids:
+            if cid in self.subject_checkboxes:
+                self.subject_checkboxes[cid].setChecked(False)
         self.update_subject_count()
 
     def update_subject_count(self):
@@ -626,55 +757,100 @@ class StudentScheduleView(QWidget):
                     item.widget().deleteLater()
 
             # Academic Prerequisite Rule:
-            # Regular students get current semester subjects.
-            # Irregular students get pending lower semesters + current semester (cannot jump to unapproved advanced semesters).
-            if is_regular:
+            # - Semester 1 students are newcomers (always regular).
+            # - Regular students (is_regular == True) enroll in their current semester subjects.
+            # - Irregular students: pending subjects are condition to unlock current semester subjects.
+            pending_ids = set()
+            if is_regular or student.semester_id <= 1:
                 subjects = db.query(Subject).filter_by(semester_id=student.semester_id).all()
+                pending_subjs = []
+                current_subjs = subjects
             else:
-                sem_ids = list(range(1, student.semester_id + 1))
-                subjects = db.query(Subject).filter(Subject.semester_id.in_(sem_ids)).all()
+                pending_ids_str = getattr(student, "pending_subject_ids", "") or ""
+                parsed_ids = [int(x) for x in pending_ids_str.split(",") if x.strip().isdigit()]
+                if parsed_ids:
+                    pending_subjs = db.query(Subject).filter(Subject.id.in_(parsed_ids)).all()
+                else:
+                    prev_subjs = db.query(Subject).filter_by(semester_id=student.semester_id - 1).all()
+                    pending_subjs = prev_subjs[:1] if prev_subjs else []
+                pending_ids = {s.id for s in pending_subjs}
+                current_subjs = db.query(Subject).filter_by(semester_id=student.semester_id).all()
+                subjects = pending_subjs + current_subjs
 
+            self.pending_subject_ids = pending_ids
+            self.current_sem_subject_ids = {s.id for s in current_subjs}
             self.subjects_map = {s.id: s for s in subjects}
             self.subject_checkboxes = {}
+            self.subject_cards = {}
+
             for subj in subjects:
+                is_pending = subj.id in pending_ids
                 card_frame = QFrame()
-                card_frame.setStyleSheet("""
-                    QFrame {
-                        background-color: #ffffff; 
-                        border: 1px solid #e2e8f0; 
-                        border-radius: 7px; 
-                        padding: 6px 10px;
-                    }
-                    QFrame:hover {
-                        border-color: #6366f1;
-                        background-color: #f5f3ff;
-                    }
-                """)
                 c_l = QHBoxLayout(card_frame)
-                c_l.setContentsMargins(6, 4, 6, 4)
+                c_l.setContentsMargins(8, 5, 8, 5)
 
                 cb = QCheckBox(f"{subj.name}")
-                cb.setStyleSheet("font-weight: 700; color: #1e3a8a;")
-                cb.setChecked(subj.semester_id == student.semester_id)
-                cb.stateChanged.connect(self.update_subject_count)
+                cb.stateChanged.connect(self.on_subject_state_changed)
+
+                if is_pending:
+                    # Pending subject from prior semester: defaults to checked
+                    card_frame.setStyleSheet("""
+                        QFrame {
+                            background-color: #fffbeb; 
+                            border: 1.5px solid #f59e0b; 
+                            border-radius: 7px; 
+                            padding: 6px 10px;
+                        }
+                    """)
+                    cb.setStyleSheet("font-weight: 700; color: #92400e;")
+                    cb.setChecked(True)
+                    cb.setEnabled(True)
+                    cb.setToolTip("Asignatura pendiente obligatoria de nivelación. Debes matricularla para desbloquear materias del semestre actual.")
+                    badge = QLabel(f"⚠️ Rezagada • Sem {subj.semester_id} • {subj.credits} cr")
+                    badge.setStyleSheet("font-size: 11px; font-weight: 800; color: #b45309; background-color: #fef3c7; padding: 2px 8px; border-radius: 4px; border: 1px solid #fde68a;")
+                else:
+                    # Current semester subject
+                    card_frame.setStyleSheet("""
+                        QFrame {
+                            background-color: #ffffff; 
+                            border: 1px solid #e2e8f0; 
+                            border-radius: 7px; 
+                            padding: 6px 10px;
+                        }
+                        QFrame:hover {
+                            border-color: #6366f1;
+                            background-color: #f5f3ff;
+                        }
+                    """)
+                    cb.setStyleSheet("font-weight: 700; color: #1e3a8a;")
+                    cb.setChecked(is_regular)
+                    cb.setEnabled(True)
+                    badge = QLabel(f"{subj.credits} cr • {subj.hours_per_week}h • Sem {subj.semester_id}")
+                    badge.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b; background-color: #f1f5f9; padding: 2px 8px; border-radius: 4px;")
+
                 c_l.addWidget(cb)
-
-                badge = QLabel(f"{subj.credits} cr • {subj.hours_per_week}h • Sem {subj.semester_id}")
-                badge.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b; background-color: #f1f5f9; padding: 2px 8px; border-radius: 4px;")
                 c_l.addWidget(badge)
-
                 self.subj_checkboxes_layout.addWidget(card_frame)
                 self.subject_checkboxes[subj.id] = cb
+                self.subject_cards[subj.id] = (card_frame, cb, badge, subj)
 
-            # Auto-load saved shift preference from student preferences
+            # Trigger leveling rules evaluation initially
+            self.on_subject_state_changed()
+
+            # Auto-load registered shift preference from student preferences
             pref = db.query(StudentPreference).filter_by(student_id=student_id, priority=1).first()
-            if pref:
-                if pref.shift == ShiftType.MORNING:
-                    self.rb_morning.setChecked(True)
-                elif pref.shift == ShiftType.AFTERNOON:
-                    self.rb_afternoon.setChecked(True)
-                elif pref.shift == ShiftType.NIGHT:
-                    self.rb_night.setChecked(True)
+            if pref and pref.shift:
+                self.current_registered_shift = pref.shift
+                shift_names = {
+                    ShiftType.MORNING: "☀️ Mañana (06:00 - 12:00)",
+                    ShiftType.AFTERNOON: "⛅ Tarde (12:00 - 18:00)",
+                    ShiftType.NIGHT: "🌙 Noche (18:00 - 22:00)"
+                }
+                shift_text = shift_names.get(pref.shift, pref.shift.value)
+                self.registered_shift_lbl.setText(f"Jornada Registrada: <b>{shift_text}</b>")
+            else:
+                self.current_registered_shift = None
+                self.registered_shift_lbl.setText("🌐 Jornada Registrada: <b>Sin preferencia / Cualquier jornada</b>")
 
             self.update_subject_count()
             self.load_official_schedule()
@@ -702,22 +878,11 @@ class StudentScheduleView(QWidget):
                 )
                 return
 
-            shift_id = self.shift_btn_group.checkedId()
-            preferred_shift = None
-            if shift_id == 1: preferred_shift = ShiftType.MORNING
-            elif shift_id == 2: preferred_shift = ShiftType.AFTERNOON
-            elif shift_id == 3: preferred_shift = ShiftType.NIGHT
+            preferred_shift = getattr(self, "current_registered_shift", None)
 
-            w_shift = self.shift_weight_slider.value()
-            w_gap = self.gap_weight_slider.value()
-            w_free = self.free_weight_slider.value()
-            total_w = w_shift + w_gap + w_free
-            if total_w > 0:
-                w_shift /= total_w
-                w_gap /= total_w
-                w_free /= total_w
-            else:
-                w_shift, w_gap, w_free = 0.5, 0.3, 0.2
+            w_shift = self.shift_weight_slider.value() / 100.0
+            w_gap = self.gap_weight_slider.value() / 100.0
+            w_free = self.free_weight_slider.value() / 100.0
 
             optimizer = StudentScheduleOptimizer(db, student_id)
             result = optimizer.optimize_student_schedule(
@@ -773,8 +938,8 @@ class StudentScheduleView(QWidget):
 
             details_lbl = QLabel(
                 f"• Jornada: {opt['shift_score']}%\n"
-                f"• Compactación: {opt['compactness_score']}%\n"
-                f"• Días Libres: {opt['free_days']}\n"
+                f"• Minimización Huecos: {opt['compactness_score']}% ({opt['total_gaps']} huecos)\n"
+                f"• Días Libres: {opt['free_days']} ({opt['free_day_score']}%)\n"
                 f"• Materias: {opt['subjects_included']}/{opt['total_requested']}"
             )
             details_lbl.setStyleSheet("font-size: 11px; color: #334155; line-height: 1.4;")
@@ -875,6 +1040,12 @@ class StudentScheduleView(QWidget):
                         self.preview_table.setItem(r_idx, c_idx, item)
 
             self.preview_table.resizeRowsToContents()
+            for r in range(self.preview_table.rowCount()):
+                h = self.preview_table.rowHeight(r)
+                if h < 65:
+                    self.preview_table.setRowHeight(r, 65)
+                elif h > 88:
+                    self.preview_table.setRowHeight(r, 85)
         finally:
             db.close()
 
@@ -979,10 +1150,26 @@ class StudentScheduleView(QWidget):
             else:
                 student = db.query(Student).filter_by(id=student_id).first()
                 sem_id = student.semester_id if student else 1
+                pref = db.query(StudentPreference).filter_by(student_id=student_id).order_by(StudentPreference.priority.asc()).first()
+                pref_shift = pref.shift if pref else ShiftType.MORNING
+                shift_kw = "Mañana" if pref_shift == ShiftType.MORNING else ("Tarde" if pref_shift == ShiftType.AFTERNOON else "Noche")
+
                 semester_subjs = db.query(Subject).filter_by(semester_id=sem_id).all()
                 subj_ids = {s.id for s in semester_subjs}
-                all_asg = db.query(ScheduleAssignment).all()
-                assignments = [a for a in all_asg if a.group and a.group.subject_id in subj_ids]
+
+                # Single group per subject matching preference to avoid stacking multi-shift groups
+                matching_groups = db.query(Group).filter(Group.subject_id.in_(subj_ids), Group.name.like(f"%{shift_kw}%")).all()
+                if not matching_groups:
+                    matching_groups = db.query(Group).filter(Group.subject_id.in_(subj_ids)).all()
+
+                seen_subj = set()
+                single_group_ids = set()
+                for g in matching_groups:
+                    if g.subject_id not in seen_subj:
+                        seen_subj.add(g.subject_id)
+                        single_group_ids.add(g.id)
+
+                assignments = db.query(ScheduleAssignment).filter(ScheduleAssignment.group_id.in_(single_group_ids)).all()
 
             for asg in assignments:
                 if asg.time_slot_id in slot_indices and asg.day.value in day_indices:
@@ -1000,6 +1187,12 @@ class StudentScheduleView(QWidget):
                     self.official_table.setItem(r_idx, c_idx, item)
 
             self.official_table.resizeRowsToContents()
+            for r in range(self.official_table.rowCount()):
+                h = self.official_table.rowHeight(r)
+                if h < 65:
+                    self.official_table.setRowHeight(r, 65)
+                elif h > 88:
+                    self.official_table.setRowHeight(r, 85)
         finally:
             db.close()
 
