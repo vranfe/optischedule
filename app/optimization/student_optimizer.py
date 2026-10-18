@@ -171,21 +171,23 @@ class StudentScheduleOptimizer:
         min_free = min(cd["free_days"] for cd in combos_data)
         max_free = max(cd["free_days"] for cd in combos_data)
 
+        # Realistic absolute benchmark for free days (out of 6 academic days Mon-Sat):
+        # 0 free days (clase los 6 días) -> 0%
+        # 1 free day (clase 5 días)      -> 35%
+        # 2 free days (clase 4 días)     -> 70%
+        # 3 free days (clase 3 días)     -> 90%
+        # >= 4 free days                 -> 100%
+        free_day_curve = {0: 0.0, 1: 0.35, 2: 0.70, 3: 0.90}
+
         scored_options = []
         for cd in combos_data:
-            # Normalized gap score:
-            # 1.0 if minimum possible gaps achieved; 0.0 if maximum possible gaps
-            if max_gaps > min_gaps:
-                gap_score = 1.0 - (cd["total_gaps"] - min_gaps) / (max_gaps - min_gaps)
-            else:
-                gap_score = 1.0 if cd["total_gaps"] == 0 else max(0.0, 1.0 - cd["total_gaps"] * 0.15)
+            # Absolute gap score:
+            # 1.0 (100%) if 0 gaps.
+            # Each gap slot (2 hours) reduces score by 10% (0 gaps = 100%, 1 slot = 90%, 2 slots / 4h = 80%, etc.)
+            gap_score = max(0.0, 1.0 - cd["total_gaps"] * 0.10)
 
-            # Normalized free days score:
-            # 1.0 if maximum possible free days achieved; 0.0 if minimum
-            if max_free > min_free:
-                free_day_score = (cd["free_days"] - min_free) / (max_free - min_free)
-            else:
-                free_day_score = 1.0 if cd["free_days"] > 0 else 0.5
+            # Absolute free day score:
+            free_day_score = free_day_curve.get(cd["free_days"], 1.0)
 
             # Composite Score (0 - 100%)
             global_score = (

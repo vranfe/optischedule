@@ -43,23 +43,6 @@ class SolutionComparisonView(QWidget):
 
         btns_layout = QHBoxLayout()
 
-        self.eval_btn = QPushButton("📊 Evaluar Horario Actual")
-        self.eval_btn.setCursor(Qt.PointingHandCursor)
-        self.eval_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4f46e5; 
-                color: white; 
-                font-weight: bold; 
-                padding: 10px 16px; 
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #4338ca;
-            }
-        """)
-        self.eval_btn.clicked.connect(self.evaluate_current)
-        btns_layout.addWidget(self.eval_btn)
-
         self.gen_alts_btn = QPushButton("⚡ Generar y Comparar Alternativas")
         self.gen_alts_btn.setCursor(Qt.PointingHandCursor)
         self.gen_alts_btn.setStyleSheet("""
@@ -351,7 +334,6 @@ class SolutionComparisonView(QWidget):
     def generate_and_compare_alternatives(self):
         self.status_lbl.setText("⏳ Iniciando cálculo de alternativas con OR-Tools en segundo plano...")
         self.gen_alts_btn.setEnabled(False)
-        self.eval_btn.setEnabled(False)
         self.pbar.setVisible(True)
         self.pbar.setValue(0)
 
@@ -367,7 +349,6 @@ class SolutionComparisonView(QWidget):
 
     def on_worker_finished(self, generated_solutions):
         self.gen_alts_btn.setEnabled(True)
-        self.eval_btn.setEnabled(True)
         self.pbar.setVisible(False)
 
         if not generated_solutions:
@@ -391,7 +372,6 @@ class SolutionComparisonView(QWidget):
 
     def on_worker_error(self, error_msg):
         self.gen_alts_btn.setEnabled(True)
-        self.eval_btn.setEnabled(True)
         self.pbar.setVisible(False)
         self.status_lbl.setText(f"❌ Error en la generación: {error_msg}")
         QMessageBox.critical(self, "Error", f"Ocurrió un error en el cálculo: {error_msg}")
