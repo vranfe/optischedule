@@ -3,9 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Caches
+# Caches and builds
 .pytest_cache/
 .ruff_cache/
+build/
+dist/
+*.toc
 
 # Virtual Environments
 .venv/
