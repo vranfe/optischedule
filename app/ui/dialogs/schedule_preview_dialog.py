@@ -473,9 +473,14 @@ class SchedulePreviewDialog(QDialog):
                 g_info = item[2] if isinstance(item, (list, tuple)) and len(item) == 3 else item
                 if isinstance(g_info, dict) and "slots" in g_info:
                     for s in g_info["slots"]:
+                        shift_obj = s.get("shift", "")
+                        shift_str = shift_obj.value if hasattr(shift_obj, "value") else str(shift_obj or "")
+                        day_obj = s.get("day", "")
+                        day_str = day_obj.value if hasattr(day_obj, "value") else str(day_obj or "")
+
                         asg_list.append({
-                            "day": s.get("day", ""),
-                            "shift": s.get("shift", ""),
+                            "day": day_str,
+                            "shift": shift_str,
                             "start_time": s.get("start_time", "").strftime('%H:%M') if hasattr(s.get("start_time", ""), "strftime") else str(s.get("start_time", "")),
                             "end_time": s.get("end_time", "").strftime('%H:%M') if hasattr(s.get("end_time", ""), "strftime") else str(s.get("end_time", "")),
                             "subject_name": g_info.get("subject_name", ""),
@@ -533,8 +538,22 @@ class SchedulePreviewDialog(QDialog):
                         ac["start_time"] = s.start_time.strftime('%H:%M') if s.start_time else ""
                     if not ac.get("end_time"):
                         ac["end_time"] = s.end_time.strftime('%H:%M') if s.end_time else ""
+
+                if hasattr(ac.get("shift"), "value"):
+                    ac["shift"] = ac["shift"].value
+                elif ac.get("shift") is not None:
+                    ac["shift"] = str(ac["shift"])
+
                 if hasattr(ac.get("day"), "value"):
                     ac["day"] = ac["day"].value
+                elif ac.get("day") is not None:
+                    ac["day"] = str(ac["day"])
+
+                if hasattr(ac.get("teacher_type"), "value"):
+                    ac["teacher_type"] = ac["teacher_type"].value
+                elif ac.get("teacher_type") is not None:
+                    ac["teacher_type"] = str(ac["teacher_type"])
+
                 enriched.append(ac)
             asg_list = enriched
         finally:

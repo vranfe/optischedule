@@ -53,10 +53,12 @@ class StudentScheduleOptimizer:
                         "room_name": asg.room.name,
                         "slots": []
                     }
+                shift_val = asg.time_slot.shift.value if asg.time_slot and hasattr(asg.time_slot.shift, "value") else (str(asg.time_slot.shift) if asg.time_slot else "")
+                day_val = asg.day.value if hasattr(asg.day, "value") else str(asg.day)
                 subject_group_slots[s_id][g_id]["slots"].append({
-                    "day": asg.day.value,
+                    "day": day_val,
                     "time_slot_id": asg.time_slot_id,
-                    "shift": asg.time_slot.shift if asg.time_slot else None,
+                    "shift": shift_val,
                     "start_time": asg.time_slot.start_time if asg.time_slot else None,
                     "end_time": asg.time_slot.end_time if asg.time_slot else None,
                     "assignment_id": asg.id
@@ -133,9 +135,11 @@ class StudentScheduleOptimizer:
             # Metric A: Shift preference score
             matched_shift_slots = 0
             if preferred_shift:
+                pref_val = preferred_shift.value if hasattr(preferred_shift, "value") else str(preferred_shift)
                 for _, _, g_info in combo:
                     for s in g_info["slots"]:
-                        if s["shift"] == preferred_shift:
+                        s_shift = s["shift"].value if hasattr(s["shift"], "value") else str(s["shift"])
+                        if s_shift == pref_val:
                             matched_shift_slots += 1
                 shift_score = (matched_shift_slots / total_slots) if total_slots > 0 else 1.0
             else:

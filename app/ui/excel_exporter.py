@@ -118,8 +118,21 @@ def _enrich_assignments_if_needed(assignments):
                             ac["start_time"] = s.start_time.strftime('%H:%M') if s.start_time else ""
                         if not ac.get("end_time"):
                             ac["end_time"] = s.end_time.strftime('%H:%M') if s.end_time else ""
+                    if hasattr(ac.get("shift"), "value"):
+                        ac["shift"] = ac["shift"].value
+                    elif ac.get("shift") is not None:
+                        ac["shift"] = str(ac["shift"])
+
                     if hasattr(ac.get("day"), "value"):
                         ac["day"] = ac["day"].value
+                    elif ac.get("day") is not None:
+                        ac["day"] = str(ac["day"])
+
+                    if hasattr(ac.get("teacher_type"), "value"):
+                        ac["teacher_type"] = ac["teacher_type"].value
+                    elif ac.get("teacher_type") is not None:
+                        ac["teacher_type"] = str(ac["teacher_type"])
+
                     enriched.append(ac)
                 else:
                     enriched.append(a)
@@ -128,6 +141,13 @@ def _enrich_assignments_if_needed(assignments):
             db.close()
     except Exception:
         return assignments
+
+def _sanitize_cell_value(val):
+    if hasattr(val, "value"):
+        return str(val.value)
+    if isinstance(val, (int, float, str, bool)) or val is None:
+        return val
+    return str(val)
 
 def _extract_semester_id(asg):
     if isinstance(asg, dict):
@@ -364,17 +384,27 @@ def _export_to_excel(file_path, table_widget, assignments, title):
 
         for row_idx, asg in enumerate(assignments, start=2):
             if isinstance(asg, dict):
+                shift_val = asg.get("shift", "")
+                if hasattr(shift_val, "value"):
+                    shift_val = shift_val.value
+                day_val = asg.get("day", "")
+                if hasattr(day_val, "value"):
+                    day_val = day_val.value
+                t_type = asg.get("teacher_type", "")
+                if hasattr(t_type, "value"):
+                    t_type = t_type.value
+
                 row_vals = [
                     asg.get("id", row_idx - 1),
-                    asg.get("day", ""),
-                    asg.get("shift", ""),
+                    day_val,
+                    shift_val,
                     asg.get("start_time", ""),
                     asg.get("end_time", ""),
                     asg.get("subject_name", ""),
                     asg.get("semester", ""),
                     asg.get("group_name", ""),
                     asg.get("teacher_name", ""),
-                    asg.get("teacher_type", ""),
+                    t_type,
                     asg.get("room_name", ""),
                     asg.get("room_type", "")
                 ]
@@ -419,7 +449,8 @@ def _export_to_excel(file_path, table_widget, assignments, title):
             r_fill = alt_fill if is_even else default_fill
 
             for c_idx, val in enumerate(row_vals, start=1):
-                cell = ws_detail.cell(row=row_idx, column=c_idx, value=val)
+                clean_val = _sanitize_cell_value(val)
+                cell = ws_detail.cell(row=row_idx, column=c_idx, value=clean_val)
                 cell.fill = r_fill
                 cell.border = thin_border
                 cell.font = Font(name="Segoe UI", size=10)
