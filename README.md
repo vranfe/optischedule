@@ -248,4 +248,4 @@ tests/test_validation.py ...                                             [100%]
 ---
 
 ## 📄 Créditos y Autoría
-Proyecto desarrollado para el semillero de investigación y taller de programación de la **Universidad Manuela Beltrán (UMB)**.
+Proyecto desarrollado para taller de programación de la **Universidad Manuela Beltrán (UMB)**.
