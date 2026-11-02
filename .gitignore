@@ -21,3 +21,6 @@ env/
 
 # SQLite databases (if temporary/local, though data/optischedule.db is our seeded DB)
 # data/*.db
+
+# SDD & Agent tooling
+.atl/

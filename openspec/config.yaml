@@ -1,0 +1,49 @@
+schema: spec-driven
+strict_tdd: true
+
+context: |
+  Tech stack: Python 3.14 / PySide6 (Qt 6.11) / SQLAlchemy 2.0 (SQLite 3) / Google OR-Tools CP-SAT 9.8+
+  Architecture: Layered MVC/Desktop App (app/auth, app/database, app/optimization, app/ui)
+  Testing: pytest 9.1+ with pytest-qt 4.5+ (Unit & Integration tests)
+  Conventions: PEP 8, PBKDF2-HMAC-SHA256 password hashing, RBAC (Admin/Teacher/Student)
+  Build: PyInstaller desktop executable bundling (OptiSchedule-UMB.spec)
+
+testing:
+  strict_tdd: true
+  runner:
+    command: "pytest"
+    framework: "pytest"
+  layers:
+    unit: true
+    integration: true
+    e2e: false
+  coverage:
+    available: false
+    command: ""
+  quality:
+    linter: ""
+    type_checker: ""
+    formatter: ""
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    - Follow existing code patterns
+    tdd: true
+    test_command: "pytest"
+  verify:
+    test_command: "pytest"
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
