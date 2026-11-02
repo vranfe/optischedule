@@ -13,7 +13,6 @@ for pkg in ['ortools', 'openpyxl', 'et_xmlfile']:
     except Exception as e:
         print(f"Warning collecting {pkg}: {e}")
 
-
 a = Analysis(
     ['main.py'],
     pathex=[],
