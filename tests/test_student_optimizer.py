@@ -90,3 +90,31 @@ def test_student_save_schedule(setup_with_schedule):
             db2.close()
     finally:
         db.close()
+
+
+def test_student_optimizer_night_shift_priority(setup_with_schedule):
+    db = next(get_db())
+    try:
+        student = db.query(Student).filter_by(semester_id=3).first()
+        assert student is not None
+        subjects = db.query(Subject).filter_by(semester_id=3).all()
+        selected_ids = [s.id for s in subjects]
+
+        optimizer = StudentScheduleOptimizer(db, student.id)
+        result = optimizer.optimize_student_schedule(
+            selected_subject_ids=selected_ids,
+            preferred_shift=ShiftType.NIGHT,
+            shift_weight=1.0,
+            gap_weight=0.0,
+            free_day_weight=0.0
+        )
+        assert result["status"] == "SUCCESS"
+        assert len(result["options"]) > 0
+        top = result["options"][0]
+        # Regular students with full night cohort should achieve high night match (>= 90%)
+        assert top["shift_score"] >= 90.0, f"Expected night score >= 90%, got {top['shift_score']}%"
+        # Confirm groups assigned are predominantly G3
+        night_group_count = sum(1 for _, _, g in top["groups"] if "G3" in g["group_name"] or "NOCHE" in g["group_name"].upper())
+        assert night_group_count >= len(selected_ids) - 1
+    finally:
+        db.close()
