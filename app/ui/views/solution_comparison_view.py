@@ -314,15 +314,15 @@ class SolutionComparisonView(QWidget):
             alt2_res["global_score"] = round(alt2_res["gap_score"] * 0.4 + alt2_res["preference_score"] * 0.2 + alt2_res["teacher_load_score"] * 0.2 + alt2_res["room_utilization_score"] * 0.1 + alt2_res["distribution_score"] * 0.1, 1)
 
             self.solutions.append({
-                "name": "Alternativa B (Enfoque Preferencias)",
-                "badge": "ALTERNATIVA B",
+                "name": "Alternativa A (Enfoque Afinidad Docente)",
+                "badge": "ALTERNATIVA A",
                 "is_best": False,
                 "data": alt1_res,
                 "assignments": assignments_list
             })
             self.solutions.append({
-                "name": "Alternativa C (Enfoque Compacto)",
-                "badge": "ALTERNATIVA C",
+                "name": "Alternativa B (Enfoque Horario Compacto)",
+                "badge": "ALTERNATIVA B",
                 "is_best": False,
                 "data": alt2_res,
                 "assignments": assignments_list
@@ -359,9 +359,13 @@ class SolutionComparisonView(QWidget):
         self.solutions = []
         for idx, sol in enumerate(generated_solutions):
             is_best = (idx == 0)
+            letter = chr(65 + idx)
+            focus = sol.get("focus_name", sol.get("name", "Optimización")).strip()
+            display_name = f"Alternativa {letter} ({focus})"
+            badge_text = f"⭐ RECOMENDADA ({letter})" if is_best else f"ALTERNATIVA {letter}"
             self.solutions.append({
-                "name": sol["name"],
-                "badge": "⭐ RECOMENDADA" if is_best else f"ALTERNATIVA {chr(65 + idx)}",
+                "name": display_name,
+                "badge": badge_text,
                 "is_best": is_best,
                 "data": sol["data"],
                 "assignments": sol["assignments"]
