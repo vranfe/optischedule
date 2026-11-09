@@ -80,10 +80,11 @@ class StudentScheduleView(QWidget):
         
         self.badge_semester = QLabel("Semestre: -")
         self.badge_leveling = QLabel("Nivelación: -")
+        self.badge_enrollment = QLabel("Matrícula: -")
         self.badge_financial = QLabel("Financiero: -")
         self.badge_window = QLabel("Ventana: -")
 
-        for b in [self.badge_semester, self.badge_leveling, self.badge_financial, self.badge_window]:
+        for b in [self.badge_semester, self.badge_leveling, self.badge_enrollment, self.badge_financial, self.badge_window]:
             b.setStyleSheet("font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; background-color: #f1f5f9; color: #334155;")
             self.badges_layout.addWidget(b)
         
@@ -714,13 +715,28 @@ class StudentScheduleView(QWidget):
                 self.badge_leveling.setText("⚠️ No Nivelado (Rezagado)")
                 self.badge_leveling.setStyleSheet("background-color: #fffbeb; color: #92400e; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #fde68a;")
 
-            # Financial standing
+            # Enrollment active status (is_enrolled)
+            is_enrolled_active = getattr(student, "is_enrolled", True)
+            if is_enrolled_active:
+                self.badge_enrollment.setText("✅ Matrícula Activa")
+                self.badge_enrollment.setStyleSheet("background-color: #ecfdf5; color: #065f46; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #a7f3d0;")
+            else:
+                self.badge_enrollment.setText("🔴 Matrícula Inactiva / No Inscrito")
+                self.badge_enrollment.setStyleSheet("background-color: #fff1f2; color: #be123c; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #f43f5e;")
+
+            # Financial standing (has_payment_agreement vs payment_agreement_allowed)
+            payment_allowed = getattr(config, "payment_agreement_allowed", True) if config else True
+            has_financial_block = (getattr(student, "has_payment_agreement", False) and not payment_allowed)
+
             if not student.has_payment_agreement:
                 self.badge_financial.setText("💳 Paz y Salvo (Al Día)")
                 self.badge_financial.setStyleSheet("background-color: #eff6ff; color: #1e40af; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #bfdbfe;")
-            else:
-                self.badge_financial.setText("📋 Con Acuerdo de Pago")
+            elif payment_allowed:
+                self.badge_financial.setText("📋 Con Acuerdo de Pago (Autorizado)")
                 self.badge_financial.setStyleSheet("background-color: #fff7ed; color: #9a3412; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #fed7aa;")
+            else:
+                self.badge_financial.setText("🔴 Bloqueo Financiero (Acuerdo No Autorizado)")
+                self.badge_financial.setStyleSheet("background-color: #fff1f2; color: #be123c; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #f43f5e;")
 
             self.student_name_lbl.setText(f"🎓 Estudiante: {student.name}")
             self.badge_semester.setText(f"📚 Semestre {student.semester_id}")
@@ -742,13 +758,27 @@ class StudentScheduleView(QWidget):
             except Exception:
                 is_in_window = True
 
-            self.is_enrollment_allowed = is_in_window
-            if is_in_window:
-                self.badge_window.setText(f"🟢 Inscripción Habilitada (Hasta {end_date_str})")
-                self.badge_window.setStyleSheet("background-color: #ecfdf5; color: #047857; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #10b981;")
-            else:
+            # Composite Enrollment Clearance Guard
+            if not is_enrolled_active:
+                self.is_enrollment_allowed = False
+                self.enrollment_block_reason = "Matrícula académica inactiva. No estás inscrito como estudiante activo para este período académico."
+                self.badge_window.setText("🔴 Inscripción Bloqueada (Matrícula Inactiva)")
+                self.badge_window.setStyleSheet("background-color: #fff1f2; color: #be123c; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #f43f5e;")
+            elif has_financial_block:
+                self.is_enrollment_allowed = False
+                self.enrollment_block_reason = "Bloqueo por Tesorería: La Universidad no autoriza inscripciones con acuerdos de pago pendientes en este período."
+                self.badge_window.setText("🔴 Inscripción Bloqueada (Trámite Financiero)")
+                self.badge_window.setStyleSheet("background-color: #fff1f2; color: #be123c; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #f43f5e;")
+            elif not is_in_window:
+                self.is_enrollment_allowed = False
+                self.enrollment_block_reason = f"Fuera de fecha de matrícula para tu cohorte (Turno: {start_date_str} al {end_date_str})."
                 self.badge_window.setText(f"🔴 Fuera de Fecha (Turno: {start_date_str} al {end_date_str})")
                 self.badge_window.setStyleSheet("background-color: #fff1f2; color: #be123c; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #f43f5e;")
+            else:
+                self.is_enrollment_allowed = True
+                self.enrollment_block_reason = ""
+                self.badge_window.setText(f"🟢 Inscripción Habilitada (Hasta {end_date_str})")
+                self.badge_window.setStyleSheet("background-color: #ecfdf5; color: #047857; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #10b981;")
 
             # Clear subject checkboxes
             while self.subj_checkboxes_layout.count() > 0:
@@ -861,6 +891,22 @@ class StudentScheduleView(QWidget):
         db = SessionLocal()
         try:
             student_id = session.student_id or 1
+            student = db.query(Student).filter_by(id=student_id).first()
+            if student and not getattr(student, "is_enrolled", True):
+                QMessageBox.warning(
+                    self, "Matrícula Inactiva",
+                    "Tu matrícula académica se encuentra marcada como INACTIVA.\n\n"
+                    "Puedes simular y previsualizar opciones de horario con fines informativos, pero el sistema no te permitirá confirmar la inscripción de asignaturas hasta que Registro Académico active tu matrícula."
+                )
+            elif student and student.has_payment_agreement:
+                config = db.query(Config).first()
+                if config and not config.payment_agreement_allowed:
+                    QMessageBox.warning(
+                        self, "Bloqueo Financiero",
+                        "Tu estado de cuenta presenta un acuerdo de pago pendiente de legalización ante Tesorería.\n\n"
+                        "Puedes simular y previsualizar opciones de horario, pero la confirmación formal de matrícula permanecerá bloqueada hasta legalizar tu paz y salvo formal."
+                    )
+
             selected_ids = [s_id for s_id, cb in self.subject_checkboxes.items() if cb.isChecked()]
             if not selected_ids:
                 QMessageBox.warning(self, "Atención", "Debes seleccionar al menos una asignatura para optimizar tu horario.")
@@ -982,9 +1028,18 @@ class StudentScheduleView(QWidget):
         self.save_schedule_btn.setEnabled(True)
         
         if not self.is_enrollment_allowed:
-            self.save_schedule_btn.setText(f"🔒 INCRIPCIÓN CERRADA (FUERA DE FECHA INSTITUCIONAL)")
+            reason_txt = getattr(self, "enrollment_block_reason", "RESTRICCIÓN INSTITUCIONAL").upper()
+            if "INACTIVA" in reason_txt:
+                label_btn = "🚫 MATRÍCULA INACTIVA (NO PUEDES INSCRIBIR)"
+            elif "TESORERÍA" in reason_txt or "FINANCIERO" in reason_txt:
+                label_btn = "🚫 BLOQUEO FINANCIERO (ACUERDO PENDIENTE)"
+            else:
+                label_btn = "🚫 INSCRIPCIÓN CERRADA (FUERA DE FECHA)"
+            self.save_schedule_btn.setText(label_btn)
+            self.save_schedule_btn.setStyleSheet("background-color: #fca5a5; color: #7f1d1d; font-weight: 800; padding: 12px 20px; border-radius: 8px; font-size: 13px; border: 1.5px solid #ef4444;")
         else:
             self.save_schedule_btn.setText(f"✅ CONFIRMAR E INSCRIBIR ALTERNATIVA #{option_index + 1} (Calidad: {self.current_preview_option['global_score']}%)")
+            self.save_schedule_btn.setStyleSheet("background-color: #10b981; color: white; font-weight: 800; padding: 12px 20px; border-radius: 8px; font-size: 13px;")
 
         db = SessionLocal()
         try:
@@ -1079,7 +1134,16 @@ class StudentScheduleView(QWidget):
             student = db.query(Student).filter_by(id=student_id).first()
             config = db.query(Config).first()
 
-            # Validación de Estado Financiero Estudiantil
+            # Validación 1: Matrícula Activa en Sistema
+            if student and not getattr(student, "is_enrolled", True):
+                QMessageBox.warning(
+                    self, "Matrícula Inactiva",
+                    "Tu registro como estudiante se encuentra marcado como INACTIVO para este período académico.\n\n"
+                    "Por favor acércate a la Oficina de Registro y Control Académico de la Universidad Manuela Beltrán para activar tu estado y habilitar la matrícula de asignaturas."
+                )
+                return
+
+            # Validación 2: Estado Financiero Estudiantil
             if config and not config.payment_agreement_allowed and student and student.has_payment_agreement:
                 QMessageBox.warning(
                     self, "Trámite Financiero Requerido",
@@ -1089,12 +1153,13 @@ class StudentScheduleView(QWidget):
                 )
                 return
 
-            # Validación de Período Regular de Matrícula
+            # Validación 3: Ventana de Matrícula y Bloqueos
             if not self.is_enrollment_allowed:
+                reason = getattr(self, "enrollment_block_reason", "") or "El período de inscripción para tu cohorte ha finalizado."
                 QMessageBox.warning(
-                    self, "Período de Matrícula Cerrado",
-                    "El período de inscripción para tu cohorte ha finalizado (o aún no inicia según el calendario académico institucional).\n\n"
-                    "Cualquier solicitud de matrícula extemporánea debe ser radicada y aprobada formalmente ante la Coordinación de Programa de la Universidad."
+                    self, "Inscripción No Habilitada",
+                    f"{reason}\n\n"
+                    "Cualquier solicitud de excepción debe ser radicada y aprobada formalmente ante la Coordinación de Programa de la Universidad."
                 )
                 return
 

@@ -285,6 +285,21 @@ class RulesView(QWidget):
         sat_layout.addStretch()
         h_card_layout.addWidget(sat_frame)
 
+        # Payment Agreement Operation Toggle Pill
+        pay_frame = QFrame()
+        pay_frame.setStyleSheet("""
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 14px;
+        """)
+        pay_layout = QHBoxLayout(pay_frame)
+        self.payment_agreement_check = QCheckBox("Permitir Matrícula de Horario a Estudiantes con Acuerdo de Pago (Financiación)")
+        self.payment_agreement_check.setStyleSheet("font-weight: 700; color: #1e293b;")
+        pay_layout.addWidget(self.payment_agreement_check)
+        pay_layout.addStretch()
+        h_card_layout.addWidget(pay_frame)
+
         main_layout.addWidget(hard_card)
 
         # -------------------------------------------------------------
@@ -410,6 +425,7 @@ class RulesView(QWidget):
             self.cat_spin.setValue(config.catedra_hours)
             self.consec_spin.setValue(config.max_consecutive_hours if hasattr(config, "max_consecutive_hours") else 4)
             self.sat_check.setChecked(config.allow_saturday if hasattr(config, "allow_saturday") else True)
+            self.payment_agreement_check.setChecked(config.payment_agreement_allowed if hasattr(config, "payment_agreement_allowed") and config.payment_agreement_allowed is not None else True)
 
             self.pref_weight.setValue(config.pref_weight)
             self.gap_weight.setValue(config.gap_weight)
@@ -440,6 +456,7 @@ class RulesView(QWidget):
             config.catedra_hours = self.cat_spin.value()
             config.max_consecutive_hours = self.consec_spin.value()
             config.allow_saturday = self.sat_check.isChecked()
+            config.payment_agreement_allowed = self.payment_agreement_check.isChecked()
 
             config.pref_weight = self.pref_weight.value()
             config.gap_weight = self.gap_weight.value()
