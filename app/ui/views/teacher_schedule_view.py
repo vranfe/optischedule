@@ -369,7 +369,8 @@ class TeacherScheduleView(QWidget):
                 f"Horario_{clean_name}.xlsx",
                 self.table,
                 assignments,
-                title=f"Horario Semanal Docente - {teacher_name}"
+                title=f"Horario Semanal Docente - {teacher_name}",
+                is_institutional=False
             )
         except Exception as e:
             QMessageBox.critical(self, "Error de Exportación", f"No se pudo guardar el archivo:\n{e}")

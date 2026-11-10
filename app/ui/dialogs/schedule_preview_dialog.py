@@ -485,10 +485,12 @@ class SchedulePreviewDialog(QDialog):
                         })
 
         clean_name = self.title_text.replace(":", "").replace("/", "_").replace(" ", "_")
+        is_inst = "institucional" in self.title_text.lower()
         export_schedule_dialog(
             self,
             f"Horario_{clean_name}.xlsx",
             self.table,
             asg_list,
-            title=f"Vista Previa: {self.title_text}"
+            title=f"Vista Previa: {self.title_text}",
+            is_institutional=is_inst
         )

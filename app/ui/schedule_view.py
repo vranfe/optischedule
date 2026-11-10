@@ -457,7 +457,8 @@ class ScheduleView(QWidget):
             "Horario_Institucional_UMB.xlsx",
             self.table,
             assignments,
-            title="Matriz Institucional de Horarios UMB"
+            title="Matriz Institucional de Horarios UMB",
+            is_institutional=True
         )
 
     def open_modal_schedule(self):

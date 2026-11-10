@@ -1,0 +1,733 @@
+====================================================================================================
+           UNIVERSIDAD MANUELA BELTRÁN — INGENIERÍA DE SOFTWARE / SISTEMAS
+           DOCUMENTACIÓN BASE DEL PROYECTO: SISTEMA OPTISCHEDULE UMB
+====================================================================================================
+Proyecto: OptiSchedule UMB (Sistema Inteligente de Optimización y Asignación de Horarios)
+Dominio: University Course Timetabling Problem (UCTP) con Programación Matemática de Restricciones
+Tecnologías Core: Python 3.11+, PySide6 (Qt 6), Google OR-Tools CP-SAT, SQLAlchemy ORM, SQLite WAL
+Versión Documental: 2.0 — Documentación Base de Ingeniería de Requisitos y Modelado UML
+====================================================================================================
+
+TABLA DE CONTENIDOS:
+1. INTRODUCCIÓN Y CONTEXTO INSTITUCIONAL
+2. LEVANTAMIENTO DE INFORMACIÓN Y TÉCNICAS EMPLEADAS
+3. IDENTIFICACIÓN DE NECESIDADES Y DIAGNÓSTICO DEL PROBLEMA
+4. ANÁLISIS DE LA POBLACIÓN OBJETIVO (STAKEHOLDERS)
+5. ESPECIFICACIÓN Y MATRIZ DE REQUERIMIENTOS (RF Y RNF)
+6. ARQUITECTURA Y JUSTIFICACIÓN DE LA SOLUCIÓN PROPUESTA
+7. MODELADO UML ARTICULADO CON LA SOLUCIÓN
+   7.1. Diagrama de Casos de Uso (Use Case Diagram) + Matriz de Trazabilidad
+   7.2. Diagrama de Secuencia Esencial (Sequence Diagram) + Trazabilidad Operativa
+   7.3. Diagrama de Componentes (Component Diagram) + Trazabilidad de RNFs
+   7.4. Diagrama de Clases Esenciales (Class Diagram) + Trazabilidad de Dominio
+8. GUÍA DE EDICIÓN Y RENDERIZADO EN PLANTUML
+9. CONCLUSIONES TÉCNICAS Y CRITERIOS DE CALIDAD
+
+====================================================================================================
+1. INTRODUCCIÓN Y CONTEXTO INSTITUCIONAL
+====================================================================================================
+En la Universidad Manuela Beltrán (UMB), la gestión y asignación semestral de horarios académicos 
+constituye un proceso neurálgico de alta complejidad combinatoria, clasificado en la literatura de 
+investigación de operaciones como el Problema de Asignación de Horarios Universitarios (University 
+Course Timetabling Problem - UCTP). 
+
+El proyecto OptiSchedule UMB nace como una solución institucional de escritorio, robusta y moderna, 
+orientada a transformar la confección de horarios —tradicionalmente realizada de forma manual o semi-
+asistida en hojas de cálculo— en un proceso matemático automatizado, equitativo y sin margen de error, 
+satisfaciendo restricciones normativas, optimizando la utilización de infraestructura física (aulas y 
+laboratorios) y garantizando trayectorias académicas fluidas para los estudiantes.
+
+====================================================================================================
+2. LEVANTAMIENTO DE INFORMACIÓN Y TÉCNICAS EMPLEADAS
+====================================================================================================
+Para fundamentar el diseño de la solución sobre necesidades operativas reales y no sobre suposiciones 
+abstractas, se implementó una fase rigurosa de levantamiento de información mediante tres técnicas:
+
+2.1. Entrevistas Estructuradas con Coordinadores Académicos y Decanatura:
+- Se entrevistó al personal encargado de la programación académica semestral.
+- Hallazgos: La asignación manual tardaba entre 3 y 4 semanas por facultad; se presentaban colisiones 
+  involuntarias de salones en horarios pico (7:00-9:00 y 18:00-20:00); existía dificultad constante 
+  para cumplir las restricciones laborales de docentes de Tiempo Completo (42h semanales), Medio Tiempo 
+  (21h semanales) y Cátedra (máximo 23h semanales).
+
+2.2. Encuestas de Diagnóstico a Docentes y Representantes Estudiantiles:
+- Docentes: El 78% manifestó inconformidad por no ser consultados sobre su disponibilidad horaria real 
+  o por ser asignados a asignaturas distantes de su especialidad disciplinar.
+- Estudiantes: El 84% reportó haber sufrido cruces de horario al matricular materias atrasadas (rezagados) 
+  o encontrar horarios dispersos con "huecos" muertos de más de 4 horas entre clases consecutivas.
+
+2.3. Análisis de Artefactos Normativos e Históricos:
+- Revisión del Estatuto Docente UMB (políticas de contratación, jornada máxima laboral y asignación de carga).
+- Reglamento Estudiantil (políticas de matrícula ordinaria, extraordinaria y cupos máximos por aula).
+- Historial de solicitudes de cancelación o cambio de materias por conflicto de horario (períodos 2025-1 y 2025-2).
+
+====================================================================================================
+3. IDENTIFICACIÓN DE NECESIDADES Y DIAGNÓSTICO DEL PROBLEMA
+====================================================================================================
+El análisis de los datos recolectados permitió identificar cinco problemáticas críticas:
+
+1. Complejidad Combinatoria NP-Hard no Gestionable Manualmente:
+   Con decenas de grupos, cientos de horas de clase, docentes con disponibilidades parciales y aulas con 
+   capacidades físicas limitadas, el espacio de búsqueda supera los millones de combinaciones. Un humano 
+   genera soluciones factibles pero subóptimas, con docentes subutilizados (subcarga) y aulas saturadas.
+
+2. Colisión Sistemática en Cohortes Académicas:
+   Al programar materias del mismo semestre en la misma franja horaria, los estudiantes quedan impedidos 
+   para cursar su malla curricular completa, incrementando los índices de deserción o retraso estudiantil.
+
+3. Falta de Diferenciación en Ventanas de Matrícula (Nivelados vs. Rezagados):
+   Los estudiantes nivelados (al día académica y financieramente) compiten en igualdad de condiciones con 
+   estudiantes no nivelados (rezagados), colapsando cupos y generando desorden administrativo.
+
+4. Desatención de la Preferencia y Bienestar Docente:
+   La asignación tradicional ignora la afinidad temática del docente con las asignaturas y su disponibilidad, 
+   lo que impacta negativamente la calidad pedagógica.
+
+5. Congelamiento de Herramientas de Software Convencionales:
+   Las herramientas existentes en el mercado suelen bloquear la interfaz de usuario durante el procesamiento 
+   matemático prolongado, generando frustración e incertidumbre en el usuario.
+
+====================================================================================================
+4. ANÁLISIS DE LA POBLACIÓN OBJETIVO (STAKEHOLDERS)
+====================================================================================================
+El sistema está dirigido a tres grupos poblacionales claramente delimitados:
+
+1. Administrador Institucional (Coordinadores Académicos y Directores de Programa):
+   - Perfil: Personal administrativo responsable de la viabilidad operativa del semestre.
+   - Necesidades Clave:
+     * Cargar y mantener catálogos de recursos (materias, docentes, aulas, grupos).
+     * Parametrizar topes de horas según tipo de contrato y ponderaciones de calidad.
+     * Generar horarios institucionales con garantía de cero cruces en segundos.
+     * Exportar la programación a formatos institucionales estandarizados (CSV/Excel).
+     * Simular fechas institucionales para auditar el comportamiento del calendario de matrículas.
+
+2. Docentes (Profesores de Tiempo Completo, Medio Tiempo y Cátedra):
+   - Perfil: Cuerpo profesoral de la universidad.
+   - Necesidades Clave:
+     * Registrar autónomamente su disponibilidad horaria semanal (días y franjas).
+     * Declarar y calificar su nivel de afinidad con las asignaturas del programa (escala 1 a 5).
+     * Visualizar de forma transparente su horario consolidado y carga laboral semanal asignada.
+     * Alertar oportunamente sobre posibles condiciones de subcarga laboral.
+
+3. Estudiantes (Estudiantes Regulares/Nivelados e Irregulares/Rezagados):
+   - Perfil: Alumnado de pregrado y posgrado de la institución.
+   - Necesidades Clave:
+     * Disponer de un período prioritario de matrícula para estudiantes regulares al día.
+     * Elegir su jornada de preferencia (Mañana, Tarde, Noche).
+     * Contar con un motor de optimización que busque combinaciones de grupos compatibles sin cruces.
+     * Previsualizar alternativas calificadas y formalizar su matrícula con confirmación inmediata.
+
+====================================================================================================
+5. ESPECIFICACIÓN Y MATRIZ DE REQUERIMIENTOS (RF Y RNF)
+====================================================================================================
+
+5.1. Requerimientos Funcionales (RF):
+- RF-01 (Autenticación y RBAC): El sistema debe autenticar usuarios mediante usuario y contraseña, 
+  restringiendo el acceso según el rol (ADMINISTRADOR, DOCENTE, ESTUDIANTE).
+- RF-02 (Gestión de Catálogos Académicos): El administrador debe poder crear, listar, modificar y 
+  eliminar asignaturas, docentes, aulas, grupos y estudiantes.
+- RF-03 (Configuración de Reglas y Calendario): El administrador debe poder parametrizar topes de 
+  contratación docente (42h TC, 21h MT, 23h Cátedra) y ventanas de matrícula diferenciadas para 
+  estudiantes regulares e irregulares.
+- RF-04 (Registro de Disponibilidad Docente): El docente debe poder marcar los días y bloques horarios 
+  en los que tiene disponibilidad para impartir clases.
+- RF-05 (Calificación de Afinidad Temática): El docente debe calificar de 1 (Baja) a 5 (Alta) su afinidad 
+  con las asignaturas que está facultado para dictar.
+- RF-06 (Generación de Horario Institucional Global): El sistema debe resolver la asignación del horario 
+  mediante el solver matemático Google OR-Tools CP-SAT, garantizando cero violaciones duras.
+- RF-07 (Restricciones Duras de No Colisión): El solver debe garantizar que ningún docente ni aula 
+  tenga más de un grupo en la misma franja horaria, y que grupos de una misma cohorte no se solapen.
+- RF-08 (Evaluación Cuantitativa Multicriterio): El sistema debe evaluar cada horario generado en una 
+  escala de 0% a 100%, desglosada en afinidad docente, huecos, carga laboral, uso de aulas y distribución.
+- RF-09 (Optimización Combinatoria para el Estudiante): El sistema debe ejecutar un algoritmo de 
+  Backtracking para encontrar todas las combinaciones de grupos factibles para las asignaturas deseadas.
+- RF-10 (Previsualización y Formalización de Matrícula): El estudiante debe previsualizar el Top 3 de 
+  alternativas de horario y guardar su matrícula definitiva en la base de datos.
+- RF-11 (Simulación de Fecha del Sistema): El administrador debe poder alterar la fecha virtual del 
+  sistema para verificar el bloqueo o apertura de las ventanas de matrícula.
+- RF-12 (Exportación de Horarios): El sistema debe permitir exportar tanto el horario institucional 
+  como el horario individual a formato CSV.
+
+5.2. Requerimientos No Funcionales (RNF):
+- RNF-01 (Rendimiento del Solver): La generación del horario institucional completo debe resolverse 
+  en un tiempo límite parametrizable (máximo 15 a 30 segundos) empleando paralelismo en el solver.
+- RNF-02 (Concurrencia y Fluidez de UI): El proceso de cálculo matemático debe ejecutarse en un hilo de 
+  segundo plano (QThread), garantizando que la interfaz gráfica permanezca interactiva a 60 FPS.
+- RNF-03 (Integridad y Persistencia Transaccional): La base de datos local SQLite debe operar en modo 
+  Write-Ahead Logging (WAL) con timeout de 30 segundos para evitar bloqueos por concurrencia.
+- RNF-04 (Usabilidad y Ergonomía Visual): La interfaz gráfica (PySide6) debe aplicar un sistema de diseño 
+  moderno, con paleta pastel institucional, bordes redondeados y transiciones suaves (AnimatedStack).
+- RNF-05 (Modularidad y Desacoplamiento): El código debe implementar el principio de responsabilidad 
+  única (SoC), separando estrictamente la presentación, la concurrencia, la optimización y la persistencia.
+
+====================================================================================================
+6. ARQUITECTURA Y JUSTIFICACIÓN DE LA SOLUCIÓN PROPUESTA
+====================================================================================================
+Para dar respuesta exacta a las necesidades identificadas, se seleccionó una arquitectura en 4 capas:
+
+1. Capa de Presentación (PySide6 / Qt 6):
+   Proporciona componentes visuales enriquecidos con animaciones de desvanecimiento, validación en tiempo 
+   real y controles accesibles para docentes, alumnos y administradores.
+2. Capa de Concurrencia y Control (QThread & Services):
+   Aísla la pesada carga de optimización combinatoria en 'SolverWorker' y 'AlternativesWorker', comunicando 
+   el estado mediante señales y slots nativos de Qt, erradicando el problema de congelamiento de pantalla.
+3. Capa de Lógica de Negocio y Optimización:
+   - Google OR-Tools CP-SAT: Solver de última generación desarrollado por Google para problemas combinatorios 
+     con restricciones, programado en C++ y expuesto en Python. Modela variables booleanas X[g,t,r,d,s] y 
+     resuelve en segundos problemas que tardaban semanas.
+   - StudentScheduleOptimizer: Algoritmo recursivo con poda (Backtracking) que elimina el estrés de la 
+     matrícula estudiantil garantizando horarios sin colisiones.
+   - Evaluator: Motor multicriterio que traduce la calidad del horario a métricas auditables (0-100%).
+4. Capa de Persistencia (SQLAlchemy ORM + SQLite WAL):
+   Abstrae la base de datos mediante clases de dominio tipadas y asegura operaciones ACID concurrentes 
+   sin sobrecarga de servidores externos.
+
+====================================================================================================
+7. MODELADO UML ARTICULADO CON LA SOLUCIÓN
+====================================================================================================
+Los siguientes diagramas no son esquemas aislados; representan la transcripción visual y rigurosa 
+de los requerimientos funcionales, no funcionales y la arquitectura planteada.
+
+----------------------------------------------------------------------------------------------------
+7.1. DIAGRAMA DE CASOS DE USO (USE CASE DIAGRAM)
+----------------------------------------------------------------------------------------------------
+Sustentación de Relación con los Requerimientos:
+- Da cobertura completa a la Población Objetivo identificada: Administrador, Docente y Estudiante.
+- Mapea directamente los requisitos funcionales:
+  * RF-01 -> CU01, CU02 (Seguridad y Sesión)
+  * RF-02, RF-03, RF-11 -> CU03, CU04 (Administración y Configuración)
+  * RF-06, RF-07, RF-08, RF-12 -> CU05, CU06, CU07, CU08 (Optimización Institucional)
+  * RF-04, RF-05 -> CU09, CU10 (Portal Docente)
+  * RF-09, RF-10 -> CU11, CU12, CU13, CU14 (Portal Estudiante)
+- Incorpora las relaciones normativas:
+  * <<include>>: Generar Horario incluye forzosamente validar restricciones duras y evaluar calidad.
+  * <<extend>>: Validar Ventana se extiende condicionalmente a Solicitar Excepción para alumnos fuera de fecha.
+
+CÓDIGO PLANTUML:
+
+@startuml diagram_casos_de_uso
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam ArrowColor #334155
+skinparam ActorBorderColor #1E293B
+skinparam UsecaseBackgroundColor #F8FAFC
+skinparam UsecaseBorderColor #4F46E5
+
+left to right direction
+
+actor "Administrador\nInstitucional" as Admin #DBEAFE
+actor "Docente" as Docente #FEF3C7
+actor "Estudiante" as Estudiante #D1FAE5
+actor "Solver OR-Tools\n(CP-SAT)" as Solver #FEE2E2
+
+rectangle "Sistema OptiSchedule UMB" {
+  package "Seguridad" {
+    usecase "CU01: Autenticar Usuario y Rol" as CU01
+    usecase "CU02: Cerrar Sesión" as CU02
+  }
+
+  package "Administración y Configuración" {
+    usecase "CU03: Gestionar Recursos Base\n(Docentes, Aulas, Materias, Grupos)" as CU03
+    usecase "CU04: Configurar Reglas y Calendario\n(Nivelados vs Rezagados, Topes Horas)" as CU04
+  }
+
+  package "Optimización Institucional" {
+    usecase "CU05: Generar Horario Institucional" as CU05
+    usecase "CU06: Validar Restricciones Duras" as CU06
+    usecase "CU07: Evaluar Calidad Multicriterio" as CU07
+    usecase "CU08: Exportar Grilla a CSV" as CU08
+  }
+
+  package "Portal Docente" {
+    usecase "CU09: Registrar Disponibilidad y Afinidad" as CU09
+    usecase "CU10: Consultar Horario y Carga Laboral" as CU10
+  }
+
+  package "Portal Estudiante" {
+    usecase "CU11: Validar Ventana y Estado Académico" as CU11
+    usecase "CU12: Solicitar Excepción de Matrícula" as CU12
+    usecase "CU13: Optimizar Horario Personal\n(Combinatoria sin Cruces)" as CU13
+    usecase "CU14: Previsualizar y Formalizar Matrícula" as CU14
+  }
+}
+
+' Asociaciones de Actores
+Admin --> CU01
+Docente --> CU01
+Estudiante --> CU01
+Admin --> CU02
+Docente --> CU02
+Estudiante --> CU02
+
+Admin --> CU03
+Admin --> CU04
+Admin --> CU05
+Admin --> CU08
+
+Docente --> CU09
+Docente --> CU10
+
+Estudiante --> CU11
+Estudiante --> CU13
+Estudiante --> CU14
+
+' Relaciones Include y Extend
+CU05 ..> CU06 : <<include>>
+CU05 ..> CU07 : <<include>>
+CU13 ..> CU11 : <<include>>
+CU11 <.. CU12 : <<extend>>
+CU14 ..> CU13 : <<include>>
+
+' Interacción externa
+CU05 --> Solver
+@enduml
+
+----------------------------------------------------------------------------------------------------
+7.2. DIAGRAMA DE SECUENCIA ESENCIAL (SEQUENCE DIAGRAM)
+----------------------------------------------------------------------------------------------------
+Sustentación de Relación con los Requerimientos:
+- Resuelve la necesidad de visibilidad y fluidez operacional del ciclo de vida institucional completo.
+- Mapea la ejecución asíncrona (RNF-02) donde 'SolverWorker' protege a la UI de bloqueos.
+- Incorpora las 3 fases secuenciales del negocio:
+  * Fase 1: Recolección de insumos del Docente (RF-04, RF-05).
+  * Fase 2: Ejecución matemática del Administrador con OR-Tools (RF-06, RF-07, RNF-01).
+  * Fase 3: Planificación y generación del horario personal del Alumno (RF-08, RF-09).
+- Cada caja de elemento contiene explícitamente su rol y descripción para máxima comprensión técnica.
+
+CÓDIGO PLANTUML:
+
+@startuml diagram_secuencia_esencial
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam sequenceMessageAlign center
+skinparam roundCorner 8
+skinparam BoxPadding 15
+skinparam ParticipantPadding 10
+skinparam ArrowColor #334155
+
+actor "Docente\n--\nRegistra disponibilidad\ny afinidad con materias" as Docente #FEF3C7
+actor "Administrador\n--\nConfigura parámetros\ny genera horario global" as Admin #DBEAFE
+actor "Estudiante\n--\nSelecciona jornada y\ngenera su horario personal" as Estudiante #D1FAE5
+
+box "Presentación y Control" #F8FAFC
+  participant "Interfaz de Usuario (UI)\n--\nPantallas interactivas\n(PySide6 / Qt6)" as UI
+  participant "SolverWorker\n--\nHilo secundario (QThread)\nEvita congelar la UI" as Worker
+end box
+
+box "Lógica de Optimización" #FEF3C7
+  participant "ScheduleSolver\n--\nMotor OR-Tools CP-SAT\nResuelve sin colisiones" as Solver
+  participant "StudentOptimizer\n--\nAlgoritmo Backtracking\nBusca combinaciones válidas" as StudOpt
+end box
+
+box "Almacenamiento Seguro" #EFF6FF
+  database "Base de Datos\n--\nSQLite 3 (Modo WAL)\nPersistencia en disco" as DB
+end box
+
+== FASE 1: DISPONIBILIDAD Y AFINIDAD DOCENTE ==
+
+Docente -> UI: Ingresa franjas libres y afinidad por materias (1-5)
+activate UI
+UI -> DB: INSERT TeacherAvailability & TeacherSubjectPreference
+activate DB
+DB --> UI: Datos guardados con éxito
+deactivate DB
+UI --> Docente: Disponibilidad registrada
+deactivate UI
+
+== FASE 2: RESOLUCIÓN Y GENERACIÓN INSTITUCIONAL (ADMIN) ==
+
+Admin -> UI: Clic en "⚡ Generar Horario Institucional"
+activate UI
+UI -> Worker: start() (Inicia ejecución en segundo plano)
+activate Worker
+UI -> UI: Bloquea controles y muestra barra de progreso
+
+Worker -> DB: Consulta materias, docentes, aulas y restricciones
+activate DB
+DB --> Worker: Retorna datos maestros cargados
+deactivate DB
+
+Worker -> Solver: build_model() (Construye variables y restricciones duras)
+activate Solver
+Worker -> Solver: solve() (Ejecuta solver matemático CP-SAT)
+Solver -> Solver: OR-Tools resuelve sin cruces (docentes, aulas, cohortes)
+Solver --> Worker: Retorna asignaciones óptimas
+deactivate Solver
+
+Worker -> DB: BEGIN TRANSACTION -> INSERT ScheduleAssignment -> COMMIT
+activate DB
+DB --> Worker: Horario institucional confirmado en disco
+deactivate DB
+
+Worker -->> UI: finished_signal(éxito)
+deactivate Worker
+
+UI -> UI: Renderiza grilla semanal interactiva
+UI --> Admin: Horario institucional publicado con éxito
+deactivate UI
+
+== FASE 3: GENERACIÓN Y PLANIFICACIÓN DEL HORARIO DEL ESTUDIANTE ==
+
+Estudiante -> UI: Selecciona asignaturas y turno (Mañana/Tarde/Noche)
+activate UI
+UI -> StudOpt: optimize_student_schedule(materias, turno)
+activate StudOpt
+
+StudOpt -> DB: Consulta las clases del horario institucional
+activate DB
+DB --> StudOpt: Retorna asignaciones vigentes
+deactivate DB
+
+StudOpt -> StudOpt: Backtracking: filtra cruces y califica alternativas
+StudOpt --> UI: Devuelve las 3 mejores opciones sin solapamiento
+deactivate StudOpt
+
+UI -> UI: Previsualiza la mejor alternativa en la grilla
+Estudiante -> UI: Selecciona opción predilecta y pulsa "Generar Horario"
+UI -> DB: INSERT StudentEnrollment (guarda horario del estudiante)
+activate DB
+DB --> UI: Horario guardado con éxito
+deactivate DB
+
+UI --> Estudiante: Horario personal generado y confirmado
+deactivate UI
+
+@enduml
+
+----------------------------------------------------------------------------------------------------
+7.3. DIAGRAMA DE COMPONENTES (COMPONENT DIAGRAM)
+----------------------------------------------------------------------------------------------------
+Sustentación de Relación con los Requerimientos:
+- Respalda el requerimiento no funcional RNF-05 (Arquitectura desacoplada en 4 capas).
+- Demuestra cómo se distribuyen las responsabilidades para evitar acoplamiento rígido:
+  * Presentación contiene vistas independientes que consumen los servicios de concurrencia.
+  * Control y Concurrencia actúa como mediador asíncrono para satisfacer RNF-02.
+  * Negocio encapsula el núcleo matemático satisfaciendo RF-06, RF-07, RF-08 y RF-09.
+  * Persistencia gestiona SQLite en modo WAL satisfaciendo RNF-03.
+
+CÓDIGO PLANTUML:
+
+@startuml diagram_componentes
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam componentStyle uml2
+skinparam roundCorner 10
+skinparam packageStyle rectangle
+skinparam ArrowColor #334155
+
+package "Capa de Presentación (PySide6 / Qt6)" as PresentationLayer #F8FAFC {
+  component [MainWindow\n(Contenedor Principal)] as CompMainWindow
+  component [ScheduleView\n(Grilla Institucional)] as CompScheduleView
+  component [StudentScheduleView\n(Portal Estudiante)] as CompStudentView
+  component [RulesView\n(Calendario y Topes)] as CompRules
+}
+
+package "Capa de Concurrencia y Control" as ControlLayer #EFF6FF {
+  component [SolverWorker\n(QThread)] as CompWorker
+  component [AuthService &\nSessionManager] as CompAuth
+}
+
+package "Capa de Negocio y Optimización" as LogicLayer #FEF3C7 {
+  component [ScheduleSolver\n(Google OR-Tools CP-SAT)] as CompSolver
+  component [StudentScheduleOptimizer\n(Búsqueda Combinatoria)] as CompStudentOpt
+  component [Evaluator\n(Métricas Multicriterio)] as CompEval
+}
+
+package "Capa de Persistencia (SQLAlchemy + SQLite)" as DataLayer #F1F5F9 {
+  component [ORM Models\n(User, Teacher, Student, Assignment...)] as CompORM
+  database "SQLite Database\n(optischedule.db WAL)" as CompDB
+}
+
+cloud "Librerías Externas" as External #FEE2E2 {
+  component [Google OR-Tools\n(cp_model)] as CompORTools
+  component [PySide6 Qt6 Engine] as CompQtLib
+}
+
+' Relaciones de UI
+CompMainWindow --> CompScheduleView : hospeda
+CompMainWindow --> CompStudentView : hospeda
+CompMainWindow --> CompRules : hospeda
+
+' Relaciones UI a Control y Concurrencia
+CompScheduleView --> CompWorker : ejecuta en segundo plano
+CompStudentView --> CompStudentOpt : invoca
+CompMainWindow ..> CompAuth : valida sesión
+
+' Relaciones de Concurrencia a Optimización
+CompWorker --> CompSolver : orquesta
+CompWorker --> CompEval : evalúa solución
+
+' Relaciones de Optimización con Motor Externo y ORM
+CompSolver --> CompORTools : construye y resuelve CpModel
+CompSolver --> CompORM : lee maestros y guarda asignaciones
+CompStudentOpt --> CompORM : lee asignaciones y persiste matrícula
+CompEval --> CompORM : consulta asignaciones y reglas
+
+' Persistencia a BD
+CompORM --> CompDB : transacciones con WAL y timeout
+PresentationLayer ..> CompQtLib : dependencias UI
+@enduml
+
+----------------------------------------------------------------------------------------------------
+7.4. DIAGRAMA DE CLASES ESENCIALES (CLASS DIAGRAM)
+----------------------------------------------------------------------------------------------------
+Sustentación de Relación con los Requerimientos:
+- Excluye componentes redundantes y plasma estrictamente las entidades que sostienen el modelo 
+  conceptual derivado del levantamiento de información:
+  * 'Teacher' y 'Student' reflejan la población objetivo con sus atributos normativos (tipo de contrato, 
+    semestre, condición de nivelado).
+  * 'ScheduleAssignment' es la clase asociativa quíntupla que materializa la solución matemática al problema UCTP.
+  * 'ScheduleSolver' implementa los métodos 'build_model()' y 'solve()' requeridos por RF-06 y RF-07.
+  * 'StudentScheduleOptimizer' implementa 'optimize_student_schedule()' y 'save_selected_schedule()' para RF-09 y RF-10.
+  * 'Evaluator' audita la calidad del horario de acuerdo con los pesos del RF-08.
+  * 'SessionManager' implementa el patrón Singleton asegurando la persistencia del usuario autenticado (RF-01).
+
+CÓDIGO PLANTUML:
+
+@startuml diagram_clases_esenciales
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam classAttributeIconSize 0
+skinparam roundCorner 8
+skinparam shadowing false
+skinparam ArrowColor #334155
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #4F46E5
+  HeaderBackgroundColor #EEF2FF
+}
+
+package "1. Dominio y Enumeraciones" {
+  enum UserRole {
+    ADMINISTRADOR
+    DOCENTE
+    ESTUDIANTE
+  }
+
+  enum DayOfWeek {
+    LUNES
+    MARTES
+    MIÉRCOLES
+    JUEVES
+    VIERNES
+    SÁBADO
+  }
+
+  enum ShiftType {
+    MAÑANA
+    TARDE
+    NOCHE
+  }
+}
+
+package "2. Modelos ORM Esenciales" {
+  class User {
+    +id: Integer
+    +username: String
+    +password: String
+    +role: UserRole
+    +teacher_id: Integer
+    +student_id: Integer
+  }
+
+  class Teacher {
+    +id: Integer
+    +name: String
+    +teacher_type: String
+  }
+
+  class Student {
+    +id: Integer
+    +name: String
+    +semester_id: Integer
+    +is_regular: Boolean
+    +has_payment_agreement: Boolean
+  }
+
+  class Subject {
+    +id: Integer
+    +name: String
+    +hours_per_week: Integer
+    +semester_id: Integer
+  }
+
+  class Group {
+    +id: Integer
+    +name: String
+    +subject_id: Integer
+    +expected_students: Integer
+  }
+
+  class Room {
+    +id: Integer
+    +name: String
+    +capacity: Integer
+    +room_type: String
+  }
+
+  class TimeSlot {
+    +id: Integer
+    +shift: ShiftType
+    +start_time: Time
+    +end_time: Time
+  }
+
+  class ScheduleAssignment {
+    +id: Integer
+    +group_id: Integer
+    +teacher_id: Integer
+    +room_id: Integer
+    +day: DayOfWeek
+    +time_slot_id: Integer
+  }
+
+  class StudentEnrollment {
+    +id: Integer
+    +student_id: Integer
+    +group_id: Integer
+  }
+}
+
+package "3. Núcleo de Optimización Matemática" {
+  class ScheduleSolver {
+    -db: Session
+    -profile: String
+    -model: CpModel
+    -variables: Dict
+    +__init__(db: Session, profile: String)
+    +build_model(): void
+    +solve(time_limit_seconds: Float): Dict
+  }
+
+  class Evaluator {
+    -db: Session
+    +__init__(db: Session)
+    +evaluate(assignments: List): Dict
+    +check_hard_constraints(assignments: List): Integer
+  }
+
+  class StudentScheduleOptimizer {
+    -db: Session
+    -student_id: Integer
+    +__init__(db: Session, student_id: Integer)
+    +optimize_student_schedule(subject_ids: List, shift: ShiftType): Dict
+    +save_selected_schedule(selected_groups: List): Boolean
+  }
+}
+
+package "4. Servicios y Concurrencia" {
+  class AuthService {
+    {static} +authenticate(username, password): Tuple[bool, User]
+    {static} +logout(): void
+  }
+
+  class SessionManager <<Singleton>> {
+    -_instance: SessionManager
+    +current_user: User
+    +login(user: User): void
+    +logout(): void
+    +is_authenticated: Boolean
+    +role: UserRole
+  }
+
+  class SolverWorker {
+    +finished_signal: Signal(dict)
+    +progress_signal: Signal(int, str)
+    -time_limit_seconds: Float
+    +__init__(time_limit_seconds: Float)
+    +run(): void
+  }
+}
+
+package "5. Interfaz Gráfica Esencial (PySide6)" {
+  class MainWindow {
+    +setup_role_navigation(role: UserRole): void
+    +on_login_success(user: User): void
+  }
+
+  class ScheduleView {
+    +on_generate_schedule(): void
+    +display_schedule(assignments: List): void
+  }
+
+  class StudentScheduleView {
+    +on_optimize_clicked(): void
+    +on_save_schedule(): void
+  }
+}
+
+' =============================================================
+' ASOCIACIONES Y RELACIONES ESTRUCTURALES
+' =============================================================
+
+' Relaciones de Usuarios
+User "0..1" -- "0..1" Teacher : asocia >
+User "0..1" -- "0..1" Student : asocia >
+User --> UserRole
+
+' Relaciones Académicas
+Subject "1" *-- "1..*" Group : agrupa >
+Teacher "1" -- "0..*" ScheduleAssignment : imparte >
+Group "1" -- "1..*" ScheduleAssignment : programado en >
+Room "1" -- "0..*" ScheduleAssignment : aloja >
+TimeSlot "1" -- "0..*" ScheduleAssignment : asigna franja >
+ScheduleAssignment --> DayOfWeek
+TimeSlot --> ShiftType
+
+Student "1" -- "0..*" StudentEnrollment : inscribe >
+StudentEnrollment "0..*" -- "1" Group : pertenece a >
+
+' Relaciones de Servicios y Sesión
+AuthService ..> SessionManager : actualiza
+SessionManager o-- User : mantiene activo
+
+' Relaciones de Optimización
+SolverWorker ..> ScheduleSolver : ejecuta en hilo
+SolverWorker ..> Evaluator : audita
+ScheduleSolver ..> ScheduleAssignment : genera registros
+StudentScheduleOptimizer ..> ScheduleAssignment : consulta
+StudentScheduleOptimizer ..> StudentEnrollment : persiste
+
+' Relaciones con la UI
+MainWindow *-- ScheduleView : contiene
+MainWindow *-- StudentScheduleView : contiene
+ScheduleView ..> SolverWorker : dispara
+StudentScheduleView ..> StudentScheduleOptimizer : ejecuta
+
+@enduml
+
+====================================================================================================
+8. GUÍA DE EDICIÓN Y RENDERIZADO EN PLANTUML
+====================================================================================================
+1. Renderizado Web Directo:
+   - Copiar el bloque '@startuml ... @enduml' de cualquiera de los 4 diagramas.
+   - Acceder a https://www.planttext.com o http://www.plantuml.com/plantuml/uml/
+   - Pegar el código y obtener la imagen vectorial o en mapa de bits de alta resolución.
+2. Entornos de Desarrollo (VS Code / Cursor):
+   - Instalar la extensión 'PlantUML' de Jebbs.
+   - Guardar el código en un archivo con extensión '.puml'.
+   - Usar la combinación 'Alt + D' para previsualización inmediata.
+3. Uso en Nuevos Chats de Inteligencia Artificial:
+   - Este documento contiene la totalidad del levantamiento de información, requerimientos, arquitectura 
+     y códigos fuente. Puede ser suministrado directamente como archivo de contexto en cualquier chat.
+
+====================================================================================================
+9. CONCLUSIONES TÉCNICAS Y CRITERIOS DE CALIDAD
+====================================================================================================
+- Alineación Metodológica: Cada artefacto UML modelado en este documento responde con exactitud a 
+  los requerimientos funcionales y no funcionales identificados en la fase de levantamiento.
+- Rigor Académico: La formulación matemática bajo Google OR-Tools CP-SAT resuelve formalmente el 
+  problema UCTP, erradicando los vicios de la asignación manual y garantizando la viabilidad física 
+  y pedagógica del semestre universitario en la UMB.
+- Calidad de Software: El desacoplamiento mediante QThread y SQLite WAL garantiza los estándares 
+  de confiabilidad, usabilidad y rendimiento exigidos en un sistema institucional de nivel de producción.
+====================================================================================================
+FIN DEL DOCUMENTO TÉCNICO BASE — OPTISCHEDULE UMB
+====================================================================================================
