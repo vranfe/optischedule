@@ -18,10 +18,10 @@ class AlternativesWorker(QThread):
             self.started_signal.emit()
             
             profiles = [
-                ("Solución Base (Equilibrada)", "balanced"),
-                ("Alternativa A (Prioridad Afinidad Docente)", "preferences"),
-                ("Alternativa B (Prioridad Aulas y Carga)", "load_balance"),
-                ("Alternativa C (Prioridad Compactación)", "compact")
+                ("Enfoque Equilibrado", "balanced"),
+                ("Prioridad Afinidad Docente", "preferences"),
+                ("Prioridad Aulas y Carga", "load_balance"),
+                ("Prioridad Compactación", "compact")
             ]
 
             generated_solutions = []
@@ -42,6 +42,7 @@ class AlternativesWorker(QThread):
                         eval_res = evaluator.evaluate(res["assignments"])
                         generated_solutions.append({
                             "name": name,
+                            "focus_name": name,
                             "profile": prof,
                             "data": eval_res,
                             "assignments": res["assignments"]

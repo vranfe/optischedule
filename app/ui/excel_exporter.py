@@ -175,7 +175,113 @@ def export_schedule_dialog(parent, default_filename, table_widget, assignments=N
             f"No se pudo guardar el archivo:\n\n{e}"
         )
 
-def _export_to_excel(file_path, table_widget, assignments, title, is_institutional=False):
+def _enrich_assignments_if_needed(assignments):
+    if not assignments:
+        return []
+    
+    needs_enrichment = False
+    for a in assignments:
+        if isinstance(a, dict) and not a.get("subject_name") and (a.get("group_id") or a.get("time_slot_id")):
+            needs_enrichment = True
+            break
+            
+    if not needs_enrichment:
+        return assignments
+
+    try:
+        from app.database.database import SessionLocal
+        from app.database.models import Group, Teacher, Room, TimeSlot
+        from sqlalchemy.orm import joinedload
+        
+        db = SessionLocal()
+        try:
+            groups = {g.id: g for g in db.query(Group).options(joinedload(Group.subject)).all()}
+            teachers = {t.id: t for t in db.query(Teacher).all()}
+            rooms = {r.id: r for r in db.query(Room).all()}
+            slots = {s.id: s for s in db.query(TimeSlot).all()}
+            
+            enriched = []
+            for a in assignments:
+                if isinstance(a, dict):
+                    ac = dict(a)
+                    g = groups.get(ac.get("group_id"))
+                    t = teachers.get(ac.get("teacher_id"))
+                    r = rooms.get(ac.get("room_id"))
+                    s = slots.get(ac.get("time_slot_id"))
+                    
+                    if not ac.get("subject_name") and g and g.subject:
+                        ac["subject_name"] = g.subject.name
+                    if not ac.get("group_name") and g:
+                        ac["group_name"] = g.name
+                    if not ac.get("semester") and g and g.subject:
+                        ac["semester"] = f"Semestre {g.subject.semester_id}"
+                        ac["semester_id"] = g.subject.semester_id
+                    elif ac.get("semester") and isinstance(ac.get("semester"), int):
+                        ac["semester_id"] = ac.get("semester")
+                        ac["semester"] = f"Semestre {ac.get('semester')}"
+                    if not ac.get("teacher_name") and t:
+                        ac["teacher_name"] = t.name
+                    if not ac.get("teacher_type") and t:
+                        ac["teacher_type"] = t.teacher_type.value if hasattr(t.teacher_type, "value") else str(t.teacher_type)
+                    if not ac.get("room_name") and r:
+                        ac["room_name"] = r.name
+                    if not ac.get("room_type") and r:
+                        ac["room_type"] = r.room_type
+                    if s:
+                        if not ac.get("shift"):
+                            ac["shift"] = s.shift.value if hasattr(s.shift, "value") else str(s.shift)
+                        if not ac.get("start_time"):
+                            ac["start_time"] = s.start_time.strftime('%H:%M') if s.start_time else ""
+                        if not ac.get("end_time"):
+                            ac["end_time"] = s.end_time.strftime('%H:%M') if s.end_time else ""
+                    if hasattr(ac.get("shift"), "value"):
+                        ac["shift"] = ac["shift"].value
+                    elif ac.get("shift") is not None:
+                        ac["shift"] = str(ac["shift"])
+
+                    if hasattr(ac.get("day"), "value"):
+                        ac["day"] = ac["day"].value
+                    elif ac.get("day") is not None:
+                        ac["day"] = str(ac["day"])
+
+                    if hasattr(ac.get("teacher_type"), "value"):
+                        ac["teacher_type"] = ac["teacher_type"].value
+                    elif ac.get("teacher_type") is not None:
+                        ac["teacher_type"] = str(ac["teacher_type"])
+
+                    enriched.append(ac)
+                else:
+                    enriched.append(a)
+            return enriched
+        finally:
+            db.close()
+    except Exception:
+        return assignments
+
+def _sanitize_cell_value(val):
+    if hasattr(val, "value"):
+        return str(val.value)
+    if isinstance(val, (int, float, str, bool)) or val is None:
+        return val
+    return str(val)
+
+def _extract_semester_id(asg):
+    if isinstance(asg, dict):
+        s_id = asg.get("semester_id")
+        if s_id is not None and isinstance(s_id, int):
+            return s_id
+        sem_str = str(asg.get("semester", ""))
+        digits = re.findall(r'\d+', sem_str)
+        if digits:
+            return int(digits[0])
+    else:
+        group = getattr(asg, "group", None)
+        subj = getattr(group, "subject", None) if group else None
+        if subj and getattr(subj, "semester_id", None) is not None:
+            return subj.semester_id
+    return None
+
+def _export_to_excel(file_path, table_widget, assignments, title):
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -204,14 +310,14 @@ def _export_to_excel(file_path, table_widget, assignments, title, is_institution
     }
     default_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
 
-    # Detect multi-semester assignments ONLY if institutional
+    # Detect multi-semester assignments
     sem_ids = []
-    if is_institutional and assignments:
+    if assignments:
         raw_sems = set(_extract_semester_id(a) for a in assignments)
         sem_ids = sorted([s for s in raw_sems if s is not None])
 
-    # Case 1: Institutional with Multiple Semesters -> Create separate sheets per semester
-    if is_institutional and len(sem_ids) > 1:
+    # Case 1: Multiple Semesters -> Create separate sheets per semester
+    if len(sem_ids) > 1:
         from app.database.database import SessionLocal
         from app.database.models import TimeSlot, ShiftType, DayOfWeek
 
@@ -276,6 +382,7 @@ def _export_to_excel(file_path, table_widget, assignments, title, is_institution
                     cell.border = thin_border
                     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
+                    # Match assignment
                     matching = [
                         a for a in sem_asgs
                         if (a.get("day") == d_name or (hasattr(a.get("day"), "value") and a.get("day").value == d_name)) and
@@ -307,22 +414,12 @@ def _export_to_excel(file_path, table_widget, assignments, title, is_institution
                 col_letter = get_column_letter(c_i + 2)
                 ws.column_dimensions[col_letter].width = 32
 
-    # Case 2: Teacher schedule (ONLY ONE SHEET) or Single-sheet matrix
+    # Case 2: Single Semester or table_widget provided
     else:
         ws_matrix = wb.active
-        sheet_title = "Matriz Semanal"
-        if not is_institutional and "docente" in title.lower():
-            sheet_title = "Horario Docente"
-        ws_matrix.title = sheet_title
+        single_sem_title = f"Semestre {sem_ids[0]}" if (len(sem_ids) == 1) else "Matriz Semanal"
+        ws_matrix.title = single_sem_title
         ws_matrix.views.sheetView[0].showGridLines = True
-
-        # Fit to 1 page settings for single-sheet exports
-        if not is_institutional:
-            ws_matrix.page_setup.orientation = ws_matrix.ORIENTATION_LANDSCAPE
-            ws_matrix.page_setup.paperSize = ws_matrix.PAPERSIZE_A4
-            ws_matrix.sheet_properties.pageSetUpPr.fitToPage = True
-            ws_matrix.page_setup.fitToWidth = 1
-            ws_matrix.page_setup.fitToHeight = 1
 
         col_count = max(1, table_widget.columnCount() + 1)
         ws_matrix.merge_cells(start_row=1, start_column=1, end_row=1, end_column=col_count)
@@ -376,6 +473,11 @@ def _export_to_excel(file_path, table_widget, assignments, title, is_institution
                     cell.fill = default_fill
 
             ws_matrix.row_dimensions[excel_row].height = max(38, max_lines * 16)
+
+        ws_matrix.column_dimensions["A"].width = 24
+        for c in range(table_widget.columnCount()):
+            col_letter = get_column_letter(c + 2)
+            ws_matrix.column_dimensions[col_letter].width = 30
 
         ws_matrix.column_dimensions["A"].width = 24
         for c in range(table_widget.columnCount()):
@@ -485,23 +587,73 @@ def _export_to_excel(file_path, table_widget, assignments, title, is_institution
 
     wb.save(file_path)
 
-def _export_to_csv(file_path, table_widget, assignments, title, is_institutional=False):
+def _export_to_csv(file_path, table_widget, assignments, title):
     assignments = _enrich_assignments_if_needed(assignments)
+    sem_ids = []
+    if assignments:
+        raw_sems = set(_extract_semester_id(a) for a in assignments)
+        sem_ids = sorted([s for s in raw_sems if s is not None])
+
     with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f, delimiter=";")
         writer.writerow([f"=== {title.upper()} ==="])
-        headers = ["Franja Horaria / Jornada"] + [table_widget.horizontalHeaderItem(c).text() if table_widget.horizontalHeaderItem(c) else f"Día {c+1}" for c in range(table_widget.columnCount())]
-        writer.writerow(headers)
+        
+        if len(sem_ids) > 1:
+            from app.database.database import SessionLocal
+            from app.database.models import TimeSlot, ShiftType, DayOfWeek
 
-        for r in range(table_widget.rowCount()):
-            v_item = table_widget.verticalHeaderItem(r)
-            row_label = v_item.text().replace("\n", " ") if v_item else f"Franja {r+1}"
-            row_data = [row_label]
-            for c in range(table_widget.columnCount()):
-                item = table_widget.item(r, c)
-                text = item.text().replace("\n", " | ") if item and item.text() else "---"
-                row_data.append(text)
-            writer.writerow(row_data)
+            db = SessionLocal()
+            try:
+                db_slots = db.query(TimeSlot).all()
+            finally:
+                db.close()
+
+            SHIFT_ORDER = {
+                ShiftType.MORNING: 0,
+                ShiftType.AFTERNOON: 1,
+                ShiftType.NIGHT: 2,
+                "MAÑANA": 0,
+                "TARDE": 1,
+                "NOCHE": 2
+            }
+            sorted_slots = sorted(db_slots, key=lambda s: (SHIFT_ORDER.get(s.shift, 99), s.start_time))
+            days = [d.value for d in DayOfWeek]
+
+            for sem in sem_ids:
+                writer.writerow([])
+                writer.writerow([f"=== HORARIO INSTITUCIONAL - SEMESTRE {sem} ==="])
+                writer.writerow(["Franja Horaria / Jornada"] + days)
+                sem_asgs = [a for a in assignments if _extract_semester_id(a) == sem]
+
+                for slot in sorted_slots:
+                    shift_label = slot.shift.value if hasattr(slot.shift, "value") else str(slot.shift)
+                    time_range = f"{slot.start_time.strftime('%H:%M')} - {slot.end_time.strftime('%H:%M')}"
+                    row_data = [f"{shift_label} - {time_range}"]
+                    for d_name in days:
+                        matching = [
+                            a for a in sem_asgs
+                            if (a.get("day") == d_name or (hasattr(a.get("day"), "value") and a.get("day").value == d_name)) and
+                               (a.get("time_slot_id") == slot.id or a.get("start_time") == slot.start_time.strftime('%H:%M'))
+                        ]
+                        if matching:
+                            texts = [f"{m.get('subject_name', '')} ({m.get('group_name', '')}) | {m.get('teacher_name', '')} | {m.get('room_name', '')}" for m in matching]
+                            row_data.append(" // ".join(texts))
+                        else:
+                            row_data.append("---")
+                    writer.writerow(row_data)
+        else:
+            headers = ["Franja Horaria / Jornada"] + [table_widget.horizontalHeaderItem(c).text() if table_widget.horizontalHeaderItem(c) else f"Día {c+1}" for c in range(table_widget.columnCount())]
+            writer.writerow(headers)
+
+            for r in range(table_widget.rowCount()):
+                v_item = table_widget.verticalHeaderItem(r)
+                row_label = v_item.text().replace("\n", " ") if v_item else f"Franja {r+1}"
+                row_data = [row_label]
+                for c in range(table_widget.columnCount()):
+                    item = table_widget.item(r, c)
+                    text = item.text().replace("\n", " | ") if item and item.text() else "---"
+                    row_data.append(text)
+                writer.writerow(row_data)
 
         if is_institutional and assignments:
             writer.writerow([])

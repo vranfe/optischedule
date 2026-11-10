@@ -3,9 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Caches
+# Caches and builds
 .pytest_cache/
 .ruff_cache/
+build/
+dist/
+*.toc
 
 # Virtual Environments
 .venv/
@@ -18,3 +21,6 @@ env/
 
 # SQLite databases (if temporary/local, though data/optischedule.db is our seeded DB)
 # data/*.db
+
+# SDD & Agent tooling
+.atl/

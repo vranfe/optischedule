@@ -43,23 +43,6 @@ class SolutionComparisonView(QWidget):
 
         btns_layout = QHBoxLayout()
 
-        self.eval_btn = QPushButton("📊 Evaluar Horario Actual")
-        self.eval_btn.setCursor(Qt.PointingHandCursor)
-        self.eval_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4f46e5; 
-                color: white; 
-                font-weight: bold; 
-                padding: 10px 16px; 
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #4338ca;
-            }
-        """)
-        self.eval_btn.clicked.connect(self.evaluate_current)
-        btns_layout.addWidget(self.eval_btn)
-
         self.gen_alts_btn = QPushButton("⚡ Generar y Comparar Alternativas")
         self.gen_alts_btn.setCursor(Qt.PointingHandCursor)
         self.gen_alts_btn.setStyleSheet("""
@@ -331,15 +314,15 @@ class SolutionComparisonView(QWidget):
             alt2_res["global_score"] = round(alt2_res["gap_score"] * 0.4 + alt2_res["preference_score"] * 0.2 + alt2_res["teacher_load_score"] * 0.2 + alt2_res["room_utilization_score"] * 0.1 + alt2_res["distribution_score"] * 0.1, 1)
 
             self.solutions.append({
-                "name": "Alternativa B (Enfoque Preferencias)",
-                "badge": "ALTERNATIVA B",
+                "name": "Alternativa A (Enfoque Afinidad Docente)",
+                "badge": "ALTERNATIVA A",
                 "is_best": False,
                 "data": alt1_res,
                 "assignments": assignments_list
             })
             self.solutions.append({
-                "name": "Alternativa C (Enfoque Compacto)",
-                "badge": "ALTERNATIVA C",
+                "name": "Alternativa B (Enfoque Horario Compacto)",
+                "badge": "ALTERNATIVA B",
                 "is_best": False,
                 "data": alt2_res,
                 "assignments": assignments_list
@@ -351,7 +334,6 @@ class SolutionComparisonView(QWidget):
     def generate_and_compare_alternatives(self):
         self.status_lbl.setText("⏳ Iniciando cálculo de alternativas con OR-Tools en segundo plano...")
         self.gen_alts_btn.setEnabled(False)
-        self.eval_btn.setEnabled(False)
         self.pbar.setVisible(True)
         self.pbar.setValue(0)
 
@@ -367,7 +349,6 @@ class SolutionComparisonView(QWidget):
 
     def on_worker_finished(self, generated_solutions):
         self.gen_alts_btn.setEnabled(True)
-        self.eval_btn.setEnabled(True)
         self.pbar.setVisible(False)
 
         if not generated_solutions:
@@ -378,9 +359,13 @@ class SolutionComparisonView(QWidget):
         self.solutions = []
         for idx, sol in enumerate(generated_solutions):
             is_best = (idx == 0)
+            letter = chr(65 + idx)
+            focus = sol.get("focus_name", sol.get("name", "Optimización")).strip()
+            display_name = f"Alternativa {letter} ({focus})"
+            badge_text = f"⭐ RECOMENDADA ({letter})" if is_best else f"ALTERNATIVA {letter}"
             self.solutions.append({
-                "name": sol["name"],
-                "badge": "⭐ RECOMENDADA" if is_best else f"ALTERNATIVA {chr(65 + idx)}",
+                "name": display_name,
+                "badge": badge_text,
                 "is_best": is_best,
                 "data": sol["data"],
                 "assignments": sol["assignments"]
@@ -391,7 +376,6 @@ class SolutionComparisonView(QWidget):
 
     def on_worker_error(self, error_msg):
         self.gen_alts_btn.setEnabled(True)
-        self.eval_btn.setEnabled(True)
         self.pbar.setVisible(False)
         self.status_lbl.setText(f"❌ Error en la generación: {error_msg}")
         QMessageBox.critical(self, "Error", f"Ocurrió un error en el cálculo: {error_msg}")

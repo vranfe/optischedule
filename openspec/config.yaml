@@ -1,0 +1,55 @@
+schema: spec-driven
+mode: hybrid
+strict_tdd: true
+
+context: |
+  Tech stack: Python 3.14 (CPython) / PySide6 (Qt 6.11+) / SQLAlchemy 2.0 (SQLite 3) / Google OR-Tools CP-SAT 9.8+
+  Architecture: Layered MVC/Desktop App (Data, Scripts, Tests, App: Auth, Database, Optimization, UI)
+  Optimization: CP-SAT Institutional Timetabling + Evaluator Quality Auditor + Student Value-Ordering Backtracking
+  Testing: pytest 9.1+ with pytest-qt 4.5+ (19/19 passing tests)
+  Conventions: PEP 8, PBKDF2-HMAC-SHA256 password hashing, RBAC (ADMIN, TEACHER, STUDENT)
+  Packaging: PyInstaller standalone desktop executable (dist/OptiSchedule-UMB.exe)
+
+testing:
+  strict_tdd: true
+  runner:
+    command: "pytest"
+    framework: "pytest"
+  layers:
+    unit: true
+    integration: true
+    e2e: false
+  coverage:
+    available: false
+    command: ""
+  quality:
+    linter: ""
+    type_checker: ""
+    formatter: ""
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Validate business rules, cohort alignment, and academic leveling constraints
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Document mathematical formulations and objective functions
+  design:
+    - Include sequence or state diagrams for complex flows
+    - Document architecture decisions with rationale and tradeoffs
+    - Maintain strict separation of responsibilities across layers
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    - Follow existing code patterns and layered architecture
+    - Do NOT run git commit or git push automatically
+    - tdd: true
+    - test_command: "pytest"
+  verify:
+    - test_command: "pytest"
+    - build_command: "pyinstaller OptiSchedule-UMB.spec -y"
+    - coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas

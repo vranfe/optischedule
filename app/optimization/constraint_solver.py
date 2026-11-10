@@ -138,6 +138,13 @@ class ScheduleSolver:
         for r_vars in room_day_slot_vars.values():
             if len(r_vars) > 1:
                 self.model.AddAtMostOne(r_vars)
+
+        # Academic Cohort Non-Collision Constraint:
+        # Groups belonging to the same cohort of the same semester cannot overlap in time.
+        # This guarantees regular students in that semester can enroll in their preferred shift without schedule collisions.
+        for c_vars in cohort_day_slot_vars.values():
+            if len(c_vars) > 1:
+                self.model.AddAtMostOne(c_vars)
                     
         # Teacher max load constraint (in hours): 42h FT, 21h PT, 23h Cátedra
         for t in self.teachers:

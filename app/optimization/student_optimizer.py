@@ -53,10 +53,12 @@ class StudentScheduleOptimizer:
                         "room_name": asg.room.name,
                         "slots": []
                     }
+                shift_val = asg.time_slot.shift.value if asg.time_slot and hasattr(asg.time_slot.shift, "value") else (str(asg.time_slot.shift) if asg.time_slot else "")
+                day_val = asg.day.value if hasattr(asg.day, "value") else str(asg.day)
                 subject_group_slots[s_id][g_id]["slots"].append({
-                    "day": asg.day.value,
+                    "day": day_val,
                     "time_slot_id": asg.time_slot_id,
-                    "shift": asg.time_slot.shift if asg.time_slot else None,
+                    "shift": shift_val,
                     "start_time": asg.time_slot.start_time if asg.time_slot else None,
                     "end_time": asg.time_slot.end_time if asg.time_slot else None,
                     "assignment_id": asg.id
@@ -67,14 +69,49 @@ class StudentScheduleOptimizer:
         if missing_subjects:
             return {"status": "FAILED", "msg": f"Algunas asignaturas no tienen grupos programados en el horario institucional.", "options": []}
 
-        # 2. Backtracking Search with Branch-and-Bound Safety (Fast & Non-blocking)
+        # 2. Backtracking Search with Branch-and-Bound Safety (Best-First Heuristic)
         subject_list = list(selected_subject_ids)
         feasible_combinations = []
-        max_combinations = 60
+        max_combinations = 150
         search_counter = [0]
 
+        # Best-First Branch Ordering: Prioritize candidate groups matching student's preferred shift
+        def get_candidate_groups(subj_id):
+            candidates = list(subject_group_slots[subj_id].items())
+            if not preferred_shift:
+                return candidates
+
+            pref_val = preferred_shift.value if hasattr(preferred_shift, "value") else str(preferred_shift)
+            pref_val_upper = pref_val.upper()
+
+            def group_affinity(item):
+                g_id, g_info = item
+                score = 0
+                g_name = g_info.get("group_name", "").upper()
+
+                # Primary affinity by cohort naming convention (G1-Mañana, G2-Tarde, G3-Noche)
+                if pref_val_upper == "NOCHE" and ("NOCHE" in g_name or "G3" in g_name):
+                    score += 25
+                elif ("MAÑANA" in pref_val_upper or "MAANA" in pref_val_upper) and ("MAÑANA" in g_name or "MAANA" in g_name or "G1" in g_name):
+                    score += 25
+                elif pref_val_upper == "TARDE" and ("TARDE" in g_name or "G2" in g_name):
+                    score += 25
+
+                for s in g_info.get("slots", []):
+                    s_shift = s["shift"].value if hasattr(s["shift"], "value") else str(s["shift"]).upper()
+                    s_day = s["day"].value if hasattr(s["day"], "value") else str(s["day"]).upper()
+                    if s_shift == pref_val_upper:
+                        score += 5
+                    # Designated night cohorts holding Saturday sessions
+                    elif pref_val_upper == "NOCHE" and ("SÁBADO" in s_day or "SABADO" in s_day) and ("NOCHE" in g_name or "G3" in g_name):
+                        score += 5
+                return score
+
+            candidates.sort(key=group_affinity, reverse=True)
+            return candidates
+
         def search_combinations(subj_idx, current_groups, occupied_slots):
-            if len(feasible_combinations) >= max_combinations or search_counter[0] > 3000:
+            if len(feasible_combinations) >= max_combinations or search_counter[0] > 8000:
                 return
             search_counter[0] += 1
 
@@ -83,7 +120,7 @@ class StudentScheduleOptimizer:
                 return
 
             current_subj = subject_list[subj_idx]
-            for g_id, g_info in subject_group_slots[current_subj].items():
+            for g_id, g_info in get_candidate_groups(current_subj):
                 g_slots = {(s["day"], s["time_slot_id"]) for s in g_info["slots"]}
                 if not g_slots.intersection(occupied_slots):
                     search_combinations(
@@ -106,7 +143,7 @@ class StudentScheduleOptimizer:
                         feasible_combinations.append(list(c_groups))
                         return
                     c_s = sub_list[s_idx]
-                    for g_id, g_info in subject_group_slots[c_s].items():
+                    for g_id, g_info in get_candidate_groups(c_s):
                         g_slots = {(s["day"], s["time_slot_id"]) for s in g_info["slots"]}
                         if not g_slots.intersection(occ_slots):
                             search_subset(
@@ -133,9 +170,16 @@ class StudentScheduleOptimizer:
             # Metric A: Shift preference score
             matched_shift_slots = 0
             if preferred_shift:
+                pref_val = preferred_shift.value if hasattr(preferred_shift, "value") else str(preferred_shift)
+                pref_val_upper = pref_val.upper()
                 for _, _, g_info in combo:
+                    g_name = g_info.get("group_name", "").upper()
                     for s in g_info["slots"]:
-                        if s["shift"] == preferred_shift:
+                        s_shift = s["shift"].value if hasattr(s["shift"], "value") else str(s["shift"]).upper()
+                        s_day = s["day"].value if hasattr(s["day"], "value") else str(s["day"]).upper()
+                        if s_shift == pref_val_upper:
+                            matched_shift_slots += 1
+                        elif pref_val_upper == "NOCHE" and ("SÁBADO" in s_day or "SABADO" in s_day) and ("NOCHE" in g_name or "G3" in g_name):
                             matched_shift_slots += 1
                 shift_score = (matched_shift_slots / total_slots) if total_slots > 0 else 1.0
             else:
@@ -171,21 +215,23 @@ class StudentScheduleOptimizer:
         min_free = min(cd["free_days"] for cd in combos_data)
         max_free = max(cd["free_days"] for cd in combos_data)
 
+        # Realistic absolute benchmark for free days (out of 6 academic days Mon-Sat):
+        # 0 free days (clase los 6 días) -> 0%
+        # 1 free day (clase 5 días)      -> 35%
+        # 2 free days (clase 4 días)     -> 70%
+        # 3 free days (clase 3 días)     -> 90%
+        # >= 4 free days                 -> 100%
+        free_day_curve = {0: 0.0, 1: 0.35, 2: 0.70, 3: 0.90}
+
         scored_options = []
         for cd in combos_data:
-            # Normalized gap score:
-            # 1.0 if minimum possible gaps achieved; 0.0 if maximum possible gaps
-            if max_gaps > min_gaps:
-                gap_score = 1.0 - (cd["total_gaps"] - min_gaps) / (max_gaps - min_gaps)
-            else:
-                gap_score = 1.0 if cd["total_gaps"] == 0 else max(0.0, 1.0 - cd["total_gaps"] * 0.15)
+            # Absolute gap score:
+            # 1.0 (100%) if 0 gaps.
+            # Each gap slot (2 hours) reduces score by 10% (0 gaps = 100%, 1 slot = 90%, 2 slots / 4h = 80%, etc.)
+            gap_score = max(0.0, 1.0 - cd["total_gaps"] * 0.10)
 
-            # Normalized free days score:
-            # 1.0 if maximum possible free days achieved; 0.0 if minimum
-            if max_free > min_free:
-                free_day_score = (cd["free_days"] - min_free) / (max_free - min_free)
-            else:
-                free_day_score = 1.0 if cd["free_days"] > 0 else 0.5
+            # Absolute free day score:
+            free_day_score = free_day_curve.get(cd["free_days"], 1.0)
 
             # Composite Score (0 - 100%)
             global_score = (
