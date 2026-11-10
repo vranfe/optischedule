@@ -70,7 +70,7 @@ To guarantee robust multi-threaded desktop concurrency without lock contention b
 ## 4. Entity Definitions and Schema Mapping
 
 ### 4.1. `configuration` (`Config`)
-Stores master parameters and multi-criteria evaluation weights.
+Stores master parameters, operational toggles, and multi-criteria evaluation weights.
 - `id` (`Integer`, PK)
 - `full_time_hours` (`Integer`, Default: 42)
 - `part_time_hours` (`Integer`, Default: 21)
@@ -84,7 +84,7 @@ Stores master parameters and multi-criteria evaluation weights.
 - `load_weight` (`Float`, Default: 0.20)
 - `dist_weight` (`Float`, Default: 0.10)
 - `room_weight` (`Float`, Default: 0.10)
-- `payment_agreement_allowed` (`Boolean`, Default: True)
+- `payment_agreement_allowed` (`Boolean`, Default: True): Governed via UI checkbox in `RulesView` (`Permitir Matrícula de Horario a Estudiantes con Acuerdo de Pago (Financiación)`). When disabled (`False`), students with active payment agreements are placed on financial hold.
 - `enrollment_start_regular` (`String`, Default: "2026-09-01")
 - `enrollment_end_regular` (`String`, Default: "2026-09-15")
 - `enrollment_start_irregular` (`String`, Default: "2026-09-16")
@@ -163,8 +163,8 @@ Enrolled student body records.
 - `id` (`Integer`, PK, Index)
 - `name` (`String`)
 - `semester_id` (`Integer`, FK -> `semesters.id`)
-- `has_payment_agreement` (`Boolean`, Default: False): Grants registration clearance during financial review periods.
-- `is_enrolled` (`Boolean`, Default: True)
+- `has_payment_agreement` (`Boolean`, Default: False): Indicates whether tuition payment is financed via an installment agreement.
+- `is_enrolled` (`Boolean`, Default: True): Dictates whether the student has active administrative registration for the current term. If `False`, displays `🔴 Matrícula Inactiva / No Inscrito` and blocks enrollment confirmation.
 - `is_regular` (`Boolean`, Default: True): Distinguishes leveled students (`True`) from irregular/lagged students (`False`).
 - `pending_subject_ids` (`String`, Default: ""): Comma-separated subject IDs from lower semesters that must be leveled first.
 
@@ -207,11 +207,23 @@ Master schedule matrix produced by solver or manual administrative adjustments.
    $$|\text{SelectedSubjects}| \le 10$$
 3. **Academic Leveling & Irregular Student Flow:**
    - When a student is flagged as `is_regular = False`, their `pending_subject_ids` dictate the mandatory remedial curriculum.
-   - The UI displays remedial subjects with a distinctive warning badge.
    - Remedial subjects MUST be selected before subjects from their active semester can be unlocked.
-4. **Group Capacity Invariant:**
+   - Staggered registration dates assign regular students to the primary window (`enrollment_start_regular`) and irregular students to the secondary window (`enrollment_start_irregular`).
+4. **Active Registration Invariant (`is_enrolled`):**
+   - A student must have `is_enrolled == True` to finalize and confirm any course registration.
+   - If `is_enrolled == False`, the student interface displays a `🔴 Matrícula Inactiva / No Inscrito` status badge and a red banner `🔴 Inscripción Bloqueada (Matrícula Inactiva)`.
+   - Inactive students may run the combinatorial optimizer for simulation purposes, but the confirmation action is disabled and blocked with a warning directing them to Academic Records (*Registro y Control Académico*).
+5. **Financial Clearance & Payment Agreement Governance:**
+   - The university policy regarding tuition financing agreements is centrally governed by `Config.payment_agreement_allowed`.
+   - If `payment_agreement_allowed == False`, any student with `has_payment_agreement == True` is immediately flagged with `🔴 Bloqueo Financiero (Acuerdo No Autorizado)` and barred from writing to `StudentEnrollment` until formal clearance is registered with the Treasury Office (*Oficina de Tesorería y Cartera*).
+   - If `payment_agreement_allowed == True`, financed students display `📋 Con Acuerdo de Pago (Autorizado)` and proceed normally within their scheduling window.
+6. **Orthogonal Separation of Academic and Financial Governance:**
+   - The system strictly decouples **Academic Leveling Standing** (`is_regular`) from **Financial Standing** (`has_payment_agreement` / `is_enrolled`):
+     - Academic Standing governs curricular prerequisite unlocking and cohort scheduling windows.
+     - Financial Standing governs transactional registration authorization regardless of curricular term.
+7. **Group Capacity Invariant:**
    - When a student confirms enrollment in group $g$, the system writes to `StudentEnrollment`.
    - The group's `available_quota` decreases by 1.
    - If `available_quota == 0`, new enrollments are rejected unless an administrator reassigns a larger room.
-5. **Saturday Curfew Invariant:**
+8. **Saturday Curfew Invariant:**
    - No assignment in `ScheduleAssignment` can possess `day == SATURDAY` with `time_slot.end_time > 17:00`.

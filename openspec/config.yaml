@@ -6,7 +6,7 @@ context: |
   Tech stack: Python 3.14 (CPython) / PySide6 (Qt 6.11+) / SQLAlchemy 2.0 (SQLite 3) / Google OR-Tools CP-SAT 9.8+
   Architecture: Layered MVC/Desktop App (Data, Scripts, Tests, App: Auth, Database, Optimization, UI)
   Optimization: CP-SAT Institutional Timetabling + Evaluator Quality Auditor + Student Value-Ordering Backtracking
-  Testing: pytest 9.1+ with pytest-qt 4.5+ (18/18 passing tests)
+  Testing: pytest 9.1+ with pytest-qt 4.5+ (19/19 passing tests)
   Conventions: PEP 8, PBKDF2-HMAC-SHA256 password hashing, RBAC (ADMIN, TEACHER, STUDENT)
   Packaging: PyInstaller standalone desktop executable (dist/OptiSchedule-UMB.exe)
 

@@ -12,7 +12,7 @@ The Administrator acts as the academic registrar, responsible for operational co
 
 ```mermaid
 flowchart TD
-    Login([Admin Login]) --> Config[Review / Adjust System Parameters]
+    Login([Admin Login]) --> Config[Review / Adjust System Parameters & Toggles]
     Config --> CRUD[Maintain Entities: Teachers, Rooms, Groups, Subjects, Students]
     CRUD --> MasterSolver{Run Timetabler}
     MasterSolver --> SingleRun[Direct Solve: Selected Profile]
@@ -24,15 +24,16 @@ flowchart TD
     Audit --> ExportExcel[Export Master Academic Schedule to Excel]
 ```
 
-1. **System Configuration:**
+1. **System Configuration (`RulesView`):**
    - Navigates to System Configuration to update statutory contract hours (Full-time: 42h, Part-time: 21h, Cátedra: 23h), Saturday permissions, and registration date windows.
    - Adjusts the 5 global evaluator weights ($W_{\text{pref}}, W_{\text{gap}}, W_{\text{load}}, W_{\text{room}}, W_{\text{dist}}$).
+   - **Financial Policy Governance:** Toggles the operational switch `Permitir Matrícula de Horario a Estudiantes con Acuerdo de Pago (Financiación)`. When disabled (`payment_agreement_allowed = False`), all students with active payment agreements are placed on immediate administrative hold.
 2. **Master Entity Management (CRUD Tables):**
    - **Teachers:** Define contract types and academic knowledge areas (`knowledge_area`).
    - **Rooms:** Define room capacities and physical types (Normal, Laboratorio).
    - **Subjects:** Define credit values, weekly hours, semester associations, and knowledge areas.
    - **Groups:** Assign subjects, expected student counts, and inspect real-time availability badges (🟢 / 🟡 / 🔴).
-   - **Students:** Manage enrollment eligibility, payment agreement flags (`has_payment_agreement`), regular/irregular status (`is_regular`), and owed remedial subjects (`pending_subject_ids`).
+   - **Students:** Manage enrollment eligibility, active status (`is_enrolled`), payment agreement flags (`has_payment_agreement`), regular/irregular status (`is_regular`), and owed remedial subjects (`pending_subject_ids`).
 3. **Institutional Timetable Generation & Comparison:**
    - Administrator triggers the solver via the UI.
    - Under the **Solution Comparison View**, the administrator runs all 4 optimization profiles concurrently in a background worker (`AlternativesWorker`):
@@ -42,7 +43,7 @@ flowchart TD
      - **Alternativa D (Horario Compacto / Compact)**
    - The UI displays comparison cards with badges indicating recommended solutions and metric scores.
    - Selecting a candidate card allows the administrator to commit the schedule to `ScheduleAssignment`.
-4. **Excel Export:**
+4. **Excel Export (`ExcelExporter`):**
    - Generates an institutional multi-sheet `.xlsx` workbook featuring:
      - Master timetable grid.
      - Individual sheets partitioned per semester cohort.
@@ -80,25 +81,39 @@ flowchart TD
 
 ### 1.3. Student Enrollment Workflow
 
-The student enrollment flow provides an automated, guided wizard for course registration.
+The student enrollment flow provides an automated, guided wizard for course registration with multi-tiered administrative, financial, and academic clearance.
 
 ```mermaid
 flowchart TD
-    StudentLogin([Student Login]) --> CheckStanding{Check Academic Standing}
-    CheckStanding -->|Irregular / Rezagado| RemedialLock[Mandatory Remedial Subjects Flagged]
-    CheckStanding -->|Regular / Nivelado| OpenCatalog[Standard Semester Catalog]
+    StudentLogin([Student Login]) --> StatusCheck[Inspect Badges: Enrollment, Financial, Leveling, Window]
+    StatusCheck --> ActiveGate{Active Enrollment? is_enrolled == True}
+    ActiveGate -->|No| BlockBadge[Show 🔴 Matrícula Inactiva]
+    ActiveGate -->|Yes| FinGate{Financial Clearance?}
+    FinGate -->|Hold| FinHoldBadge[Show 🔴 Bloqueo Financiero]
+    FinGate -->|Clear| DateGate{Within Cohort Date Window?}
+    DateGate -->|No| DateBadge[Show 🔴 Fuera de Fecha]
+    DateGate -->|Yes| ReadyBadge[Show 🟢 Inscripción Habilitada]
+    
+    StatusCheck --> LevelingCheck{Academic Standing: is_regular}
+    LevelingCheck -->|Irregular / Rezagado| RemedialLock[Mandatory Remedial Subjects Checked & Required]
+    LevelingCheck -->|Regular / Nivelado| OpenCatalog[Standard Semester Catalog]
+    
     RemedialLock --> SubjectSelection[Select Subjects: Cap 22 Credits / Max 10 Subjects]
     OpenCatalog --> SubjectSelection
     SubjectSelection --> PreferenceSliders[Configure Shift & Zero-Sum Preference Sliders: Total 100%]
     PreferenceSliders --> RunOptimizer[Run StudentScheduleOptimizer]
     RunOptimizer --> CardReview[Display Top 3 Conflict-Free Schedule Cards: Rank A, B, C]
     CardReview --> ModalPreview[Inspect Full-Screen Color Timetable Modal]
-    ModalPreview --> ConfirmEnrollment[Confirm Registration: Write to StudentEnrollment]
-    ConfirmEnrollment --> DecrementQuota[Update Group Quota & Display Confirmed Schedule]
+    ModalPreview --> ConfirmGate{Confirm Enrollment Clearance}
+    ConfirmGate -->|Blocked| ShowAlert[Display Institutional QMessageBox Explaining Hold]
+    ConfirmGate -->|Allowed| CommitRegistration[Write to StudentEnrollment & Decrement Group Quotas]
 ```
 
-1. **Standing & Remedial Verification:**
-   - If `student.is_regular == False`, remedial subjects listed in `pending_subject_ids` are visually highlighted and prioritized.
+1. **Composite Clearance Verification:**
+   - **Active Enrollment Check:** If `is_enrolled == False`, displays `🔴 Matrícula Inactiva / No Inscrito` and sets `self.is_enrollment_allowed = False`.
+   - **Financial Clearance Check:** If `student.has_payment_agreement == True` and `config.payment_agreement_allowed == False`, displays `🔴 Bloqueo Financiero (Acuerdo No Autorizado)` and places registration on administrative hold.
+   - **Calendar Window Check:** Verifies current simulated date against `enrollment_start_regular` / `irregular`.
+   - **Leveling Check:** If `is_regular == False`, remedial subjects from `pending_subject_ids` are visually highlighted and prioritized before unlocking active semester courses.
 2. **Curricular Selection & Credit Limit Validation:**
    - Dynamic real-time calculation of selected credits and course count.
    - If credits exceed 22 or subject count exceeds 10, the optimizer execution button is deactivated with an instructional error alert.
@@ -111,14 +126,16 @@ flowchart TD
    - Sliders enforce a **strict 100% zero-sum rule**: adjusting one slider dynamically recalculates the others proportionally.
 4. **Combinatorial Optimization & Card Presentation:**
    - `StudentScheduleOptimizer` searches conflict-free combinations.
+   - Students under administrative hold or inactive status are permitted to run simulation searches for informational planning, accompanied by an explanatory dialog.
    - Presents the top 3 optimal alternatives as interactive cards detailing:
      - Global Match Percentage (e.g., 94.5%)
      - Free Days count
      - Total Gap hours
      - Shift compliance
-5. **Modal Timetable Inspection & Enrollment:**
+5. **Modal Timetable Inspection & Enrollment Confirmation:**
    - Clicking a card launches a modal showing the exact weekly calendar.
-   - Clicking **"Confirmar Matrícula"** clears prior student enrollments, inserts new `StudentEnrollment` records, decrements group availability quotas, and transitions the view to read-only confirmation.
+   - If cleared, clicking **"Confirmar Matrícula"** clears prior student enrollments, inserts new `StudentEnrollment` records, decrements group availability quotas, and transitions the view to read-only confirmation.
+   - If blocked (inactive, financial hold, or outside calendar window), clicking the button triggers a targeted `QMessageBox` detailing the exact institutional department to contact (Registro Académico, Tesorería, or Coordinación).
 
 ---
 
@@ -177,3 +194,13 @@ To guarantee database safety across worker threads:
 1. Workers do NOT receive open SQLAlchemy sessions from the UI thread.
 2. Workers invoke `SessionLocal()` inside their `run()` method to obtain a fresh connection from the engine.
 3. The engine's `NullPool` architecture guarantees that connections are closed immediately upon session termination, preventing thread lockouts on SQLite files.
+
+---
+
+## 3. Production Packaging Pipeline
+
+The application is bundled into a single-file portable Windows executable using **PyInstaller**:
+- **Build Specification:** `OptiSchedule-UMB.spec`
+- **Output Binary:** `dist/OptiSchedule-UMB.exe`
+- **Execution Command:** `pyinstaller OptiSchedule-UMB.spec -y`
+- **Packaging Guarantees:** Packages Qt 6.11 runtime libraries, SQLite drivers, OR-Tools CP-SAT shared libraries, and application icons into a self-contained executable that runs on client Windows workstations without requiring Python installation.
