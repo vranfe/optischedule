@@ -489,105 +489,13 @@ class SchedulePreviewDialog(QDialog):
                             "room_name": g_info.get("room_name", "")
                         })
 
-        # Enrich assignments from database if missing details (e.g. from OR-Tools solver alternatives)
-        db = SessionLocal()
-        try:
-            groups = {g.id: g for g in db.query(Group).options(joinedload(Group.subject)).all()}
-            teachers = {t.id: t for t in db.query(Teacher).all()}
-            rooms = {r.id: r for r in db.query(Room).all()}
-            slots = {s.id: s for s in db.query(TimeSlot).all()}
-
-            enriched = []
-            for asg in asg_list:
-                ac = dict(asg)
-                g_id = ac.get("group_id")
-                t_id = ac.get("teacher_id")
-                r_id = ac.get("room_id")
-                s_id = ac.get("time_slot_id")
-
-                g = groups.get(g_id)
-                t = teachers.get(t_id)
-                r = rooms.get(r_id)
-                s = slots.get(s_id)
-
-                if not ac.get("subject_name") and g and g.subject:
-                    ac["subject_name"] = g.subject.name
-                if not ac.get("group_name") and g:
-                    ac["group_name"] = g.name
-                if not ac.get("semester") and g and g.subject:
-                    ac["semester"] = f"Semestre {g.subject.semester_id}"
-                    ac["semester_id"] = g.subject.semester_id
-                elif ac.get("semester") and isinstance(ac.get("semester"), int):
-                    ac["semester_id"] = ac.get("semester")
-                    ac["semester"] = f"Semestre {ac.get('semester')}"
-                elif g and g.subject and "semester_id" not in ac:
-                    ac["semester_id"] = g.subject.semester_id
-
-                if not ac.get("teacher_name") and t:
-                    ac["teacher_name"] = t.name
-                if not ac.get("teacher_type") and t:
-                    ac["teacher_type"] = t.teacher_type.value if hasattr(t.teacher_type, "value") else str(t.teacher_type)
-                if not ac.get("room_name") and r:
-                    ac["room_name"] = r.name
-                if not ac.get("room_type") and r:
-                    ac["room_type"] = r.room_type
-                if s:
-                    if not ac.get("shift"):
-                        ac["shift"] = s.shift.value if hasattr(s.shift, "value") else str(s.shift)
-                    if not ac.get("start_time"):
-                        ac["start_time"] = s.start_time.strftime('%H:%M') if s.start_time else ""
-                    if not ac.get("end_time"):
-                        ac["end_time"] = s.end_time.strftime('%H:%M') if s.end_time else ""
-
-                if hasattr(ac.get("shift"), "value"):
-                    ac["shift"] = ac["shift"].value
-                elif ac.get("shift") is not None:
-                    ac["shift"] = str(ac["shift"])
-
-                if hasattr(ac.get("day"), "value"):
-                    ac["day"] = ac["day"].value
-                elif ac.get("day") is not None:
-                    ac["day"] = str(ac["day"])
-
-                if hasattr(ac.get("teacher_type"), "value"):
-                    ac["teacher_type"] = ac["teacher_type"].value
-                elif ac.get("teacher_type") is not None:
-                    ac["teacher_type"] = str(ac["teacher_type"])
-
-                enriched.append(ac)
-            asg_list = enriched
-        finally:
-            db.close()
-
-        is_semester_view = hasattr(self, 'semester_combo') and self.semester_combo.isVisible()
-        sel_sem = self.semester_combo.currentData() if is_semester_view else None
-
-        if is_semester_view and sel_sem is not None:
-            # Filter assignments to selected semester
-            filtered_asg = []
-            for a in asg_list:
-                s_id = a.get("semester_id")
-                if s_id == sel_sem:
-                    filtered_asg.append(a)
-                elif str(sel_sem) in str(a.get("semester", "")):
-                    filtered_asg.append(a)
-            asg_list = filtered_asg
-
-            clean_name = self.title_text.replace(":", "").replace("/", "_").replace(" ", "_")
-            if "Institucional" in clean_name or "Completo" in clean_name:
-                default_filename = f"Horario_Institucional_Semestre_{sel_sem}.xlsx"
-            else:
-                default_filename = f"Horario_{clean_name}_Semestre_{sel_sem}.xlsx"
-            export_title = f"{self.title_text} - Semestre {sel_sem}"
-        else:
-            clean_name = self.title_text.replace(":", "").replace("/", "_").replace(" ", "_")
-            default_filename = f"Horario_{clean_name}.xlsx"
-            export_title = f"Vista Previa: {self.title_text}"
-
+        clean_name = self.title_text.replace(":", "").replace("/", "_").replace(" ", "_")
+        is_inst = "institucional" in self.title_text.lower()
         export_schedule_dialog(
             self,
-            default_filename,
+            f"Horario_{clean_name}.xlsx",
             self.table,
             asg_list,
-            title=export_title
+            title=f"Vista Previa: {self.title_text}",
+            is_institutional=is_inst
         )
