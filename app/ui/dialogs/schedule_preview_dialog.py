@@ -584,10 +584,12 @@ class SchedulePreviewDialog(QDialog):
             default_filename = f"Horario_{clean_name}.xlsx"
             export_title = f"Vista Previa: {self.title_text}"
 
+        is_inst = "institucional" in self.title_text.lower()
         export_schedule_dialog(
             self,
             default_filename,
             self.table,
             asg_list,
-            title=export_title
+            title=export_title,
+            is_institutional=is_inst
         )
