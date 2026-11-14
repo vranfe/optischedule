@@ -70,66 +70,99 @@ class StudentScheduleOptimizer:
             return {"status": "FAILED", "msg": f"Algunas asignaturas no tienen grupos programados en el horario institucional.", "options": []}
 
         # 2. Backtracking Search with Branch-and-Bound Safety (Best-First Heuristic)
+        from itertools import combinations
         subject_list = list(selected_subject_ids)
         feasible_combinations = []
-        max_combinations = 150
+        max_combinations = 300
         search_counter = [0]
+        all_days = ["LUNES", "MARTES", "MIÉRCOLES", "JUEVES", "VIERNES", "SÁBADO"]
 
-        # Best-First Branch Ordering: Prioritize candidate groups matching student's preferred shift
-        def get_candidate_groups(subj_id):
-            candidates = list(subject_group_slots[subj_id].items())
-            if not preferred_shift:
+        # Strategy A: When free_day_weight is dominant (>= 0.4) and shift_weight is not dominant (< 0.5),
+        # prioritize compact schedules across all shifts that pack classes and maximize free days!
+        if free_day_weight >= 0.4 and shift_weight < 0.5:
+            for target_days in [3, 4, 5]:
+                if len(feasible_combinations) >= 100:
+                    break
+                for allowed_days in combinations(all_days, target_days):
+                    if len(feasible_combinations) >= 100:
+                        break
+                    allowed_set = set(allowed_days)
+                    # Rapid check: Can every subject fit in this day subset?
+                    if not all(any(all(s["day"] in allowed_set for s in g["slots"]) for g in subject_group_slots[sid].values()) for sid in subject_list):
+                        continue
+
+                    def search_day_subset(idx, cur, occ):
+                        if len(feasible_combinations) >= max_combinations or search_counter[0] > 15000:
+                            return
+                        search_counter[0] += 1
+                        if idx == len(subject_list):
+                            feasible_combinations.append(list(cur))
+                            return
+                        s_id = subject_list[idx]
+                        for g_id, g_info in subject_group_slots[s_id].items():
+                            if all(s["day"] in allowed_set for s in g_info["slots"]):
+                                g_slots = {(s["day"], s["time_slot_id"]) for s in g_info["slots"]}
+                                if not g_slots.intersection(occ):
+                                    search_day_subset(idx + 1, cur + [(s_id, g_id, g_info)], occ.union(g_slots))
+                    search_day_subset(0, [], set())
+
+        # Strategy B: Best-First Branch Ordering (Executed if Strategy A didn't run or to complete candidates)
+        if len(feasible_combinations) < max_combinations:
+            def get_candidate_groups(subj_id):
+                candidates = list(subject_group_slots[subj_id].items())
+                # Only apply shift affinity ordering if student actually prioritized shift
+                if not preferred_shift or shift_weight < 0.15:
+                    return candidates
+
+                pref_val = preferred_shift.value if hasattr(preferred_shift, "value") else str(preferred_shift)
+                pref_val_upper = pref_val.upper()
+
+                def group_affinity(item):
+                    g_id, g_info = item
+                    score = 0
+                    g_name = g_info.get("group_name", "").upper()
+
+                    # Primary affinity by cohort naming convention (G1-Mañana, G2-Tarde, G3-Noche)
+                    if pref_val_upper == "NOCHE" and ("NOCHE" in g_name or "G3" in g_name):
+                        score += 25
+                    elif ("MAÑANA" in pref_val_upper or "MAANA" in pref_val_upper) and ("MAÑANA" in g_name or "MAANA" in g_name or "G1" in g_name):
+                        score += 25
+                    elif pref_val_upper == "TARDE" and ("TARDE" in g_name or "G2" in g_name):
+                        score += 25
+
+                    for s in g_info.get("slots", []):
+                        s_shift = s["shift"].value if hasattr(s["shift"], "value") else str(s["shift"]).upper()
+                        s_day = s["day"].value if hasattr(s["day"], "value") else str(s["day"]).upper()
+                        if s_shift == pref_val_upper:
+                            score += 5
+                        # Designated night cohorts holding Saturday sessions
+                        elif pref_val_upper == "NOCHE" and ("SÁBADO" in s_day or "SABADO" in s_day) and ("NOCHE" in g_name or "G3" in g_name):
+                            score += 5
+                    return score
+
+                candidates.sort(key=group_affinity, reverse=True)
                 return candidates
 
-            pref_val = preferred_shift.value if hasattr(preferred_shift, "value") else str(preferred_shift)
-            pref_val_upper = pref_val.upper()
+            def search_combinations(subj_idx, current_groups, occupied_slots):
+                if len(feasible_combinations) >= max_combinations or search_counter[0] > 15000:
+                    return
+                search_counter[0] += 1
 
-            def group_affinity(item):
-                g_id, g_info = item
-                score = 0
-                g_name = g_info.get("group_name", "").upper()
+                if subj_idx == len(subject_list):
+                    feasible_combinations.append(list(current_groups))
+                    return
 
-                # Primary affinity by cohort naming convention (G1-Mañana, G2-Tarde, G3-Noche)
-                if pref_val_upper == "NOCHE" and ("NOCHE" in g_name or "G3" in g_name):
-                    score += 25
-                elif ("MAÑANA" in pref_val_upper or "MAANA" in pref_val_upper) and ("MAÑANA" in g_name or "MAANA" in g_name or "G1" in g_name):
-                    score += 25
-                elif pref_val_upper == "TARDE" and ("TARDE" in g_name or "G2" in g_name):
-                    score += 25
+                current_subj = subject_list[subj_idx]
+                for g_id, g_info in get_candidate_groups(current_subj):
+                    g_slots = {(s["day"], s["time_slot_id"]) for s in g_info["slots"]}
+                    if not g_slots.intersection(occupied_slots):
+                        search_combinations(
+                            subj_idx + 1,
+                            current_groups + [(current_subj, g_id, g_info)],
+                            occupied_slots.union(g_slots)
+                        )
 
-                for s in g_info.get("slots", []):
-                    s_shift = s["shift"].value if hasattr(s["shift"], "value") else str(s["shift"]).upper()
-                    s_day = s["day"].value if hasattr(s["day"], "value") else str(s["day"]).upper()
-                    if s_shift == pref_val_upper:
-                        score += 5
-                    # Designated night cohorts holding Saturday sessions
-                    elif pref_val_upper == "NOCHE" and ("SÁBADO" in s_day or "SABADO" in s_day) and ("NOCHE" in g_name or "G3" in g_name):
-                        score += 5
-                return score
-
-            candidates.sort(key=group_affinity, reverse=True)
-            return candidates
-
-        def search_combinations(subj_idx, current_groups, occupied_slots):
-            if len(feasible_combinations) >= max_combinations or search_counter[0] > 8000:
-                return
-            search_counter[0] += 1
-
-            if subj_idx == len(subject_list):
-                feasible_combinations.append(list(current_groups))
-                return
-
-            current_subj = subject_list[subj_idx]
-            for g_id, g_info in get_candidate_groups(current_subj):
-                g_slots = {(s["day"], s["time_slot_id"]) for s in g_info["slots"]}
-                if not g_slots.intersection(occupied_slots):
-                    search_combinations(
-                        subj_idx + 1,
-                        current_groups + [(current_subj, g_id, g_info)],
-                        occupied_slots.union(g_slots)
-                    )
-
-        search_combinations(0, [], set())
+            search_combinations(0, [], set())
 
         # If no full combination exists for all subjects, evaluate best nearest subset (at most 1 drop)
         if not feasible_combinations and len(subject_list) > 1:

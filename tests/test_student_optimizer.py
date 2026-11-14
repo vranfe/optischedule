@@ -118,3 +118,32 @@ def test_student_optimizer_night_shift_priority(setup_with_schedule):
         assert night_group_count >= len(selected_ids) - 1
     finally:
         db.close()
+
+
+def test_student_optimizer_free_days_maximization(setup_with_schedule):
+    db = next(get_db())
+    try:
+        student = db.query(Student).filter_by(semester_id=1).first()
+        assert student is not None
+        subjects = db.query(Subject).filter_by(semester_id=1).all()
+        selected_ids = [s.id for s in subjects]
+
+        optimizer = StudentScheduleOptimizer(db, student.id)
+        result = optimizer.optimize_student_schedule(
+            selected_subject_ids=selected_ids,
+            preferred_shift=ShiftType.MORNING,
+            shift_weight=0.0,
+            gap_weight=0.0,
+            free_day_weight=1.0
+        )
+        assert result["status"] == "SUCCESS"
+        assert len(result["options"]) > 0
+        top = result["options"][0]
+        # Should find combinations with >= 2 free days by mixing shifts
+        assert top["free_days"] >= 2, f"Expected at least 2 free days, got {top['free_days']}"
+        assert top["global_score"] >= 70.0, f"Expected global score >= 70%, got {top['global_score']}%"
+        # Confirm groups assigned mix multiple cohorts (not all G1)
+        shifts_used = {g[2]['group_name'].split('-')[0].strip() for g in top['groups']}
+        assert len(shifts_used) > 1, f"Expected multiple cohorts to be mixed, got {shifts_used}"
+    finally:
+        db.close()
