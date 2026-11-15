@@ -147,3 +147,26 @@ def test_student_optimizer_free_days_maximization(setup_with_schedule):
         assert len(shifts_used) > 1, f"Expected multiple cohorts to be mixed, got {shifts_used}"
     finally:
         db.close()
+
+
+def test_student_optimizer_tie_breaker_respects_shift_weight(setup_with_schedule):
+    db = next(get_db())
+    try:
+        student = db.query(Student).filter_by(semester_id=1).first()
+        subjects = db.query(Subject).filter_by(semester_id=1).all()
+        selected_ids = [s.id for s in subjects[:4]]
+
+        optimizer = StudentScheduleOptimizer(db, student.id)
+        result = optimizer.optimize_student_schedule(
+            selected_subject_ids=selected_ids,
+            preferred_shift=ShiftType.MORNING,
+            shift_weight=0.9,
+            gap_weight=0.05,
+            free_day_weight=0.05
+        )
+        assert result["status"] == "SUCCESS"
+        assert len(result["options"]) > 0
+        top = result["options"][0]
+        assert top["shift_score"] == 100.0
+    finally:
+        db.close()

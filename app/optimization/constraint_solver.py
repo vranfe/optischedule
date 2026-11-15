@@ -37,7 +37,7 @@ class ScheduleSolver:
         for tp in self.teacher_prefs:
             self.pref_map[(tp.teacher_id, tp.subject_id)] = tp.preference_score
 
-        # Candidate teachers per subject (strictly matched by academic knowledge area + affinity)
+        # Candidate teachers per subject (strictly matched by academic knowledge area, no preference starvation)
         self.subject_teachers = {}
         for g in self.groups:
             s_id = g.subject_id
@@ -47,19 +47,14 @@ class ScheduleSolver:
                 domain_teachers = [t for t in self.teachers if not subj_area or getattr(t, "knowledge_area", None) == subj_area]
                 if not domain_teachers:
                     domain_teachers = self.teachers
-
-                cands = [t for t in domain_teachers if (t.id, s_id) in self.pref_map and self.pref_map[(t.id, s_id)] >= 2]
-                if len(cands) < 2:
-                    cands = [t for t in domain_teachers if (t.id, s_id) in self.pref_map]
-                if not cands:
-                    cands = domain_teachers
-                self.subject_teachers[s_id] = cands
+                self.subject_teachers[s_id] = domain_teachers
 
         self.variables = {}
         # assign[(g.id, t.id, r.id, d.value, s.id)] = boolean variable
     
     def build_model(self):
         from collections import defaultdict
+        import re
 
         # Index dictionaries for O(1) constraint generation
         group_vars = defaultdict(list)
@@ -74,9 +69,19 @@ class ScheduleSolver:
             valid_rooms = [r for r in self.rooms if r.capacity >= g.expected_students]
             if not valid_rooms:
                 valid_rooms = self.rooms # Fallback
-            offset = g.id % len(valid_rooms)
-            rotated = valid_rooms[offset:] + valid_rooms[:offset]
-            candidate_rooms = rotated[:6]
+
+            subj_area = getattr(g.subject, "knowledge_area", "") if g.subject else ""
+            if "Software" in subj_area or "Redes" in subj_area or "Hardware" in subj_area:
+                pref_rooms = [r for r in valid_rooms if r.room_type == "Laboratorio"]
+                other_rooms = [r for r in valid_rooms if r.room_type != "Laboratorio"]
+            else:
+                pref_rooms = [r for r in valid_rooms if r.room_type == "Normal"]
+                other_rooms = [r for r in valid_rooms if r.room_type != "Normal"]
+
+            ordered_rooms = pref_rooms + other_rooms
+            offset = g.id % max(1, len(ordered_rooms))
+            rotated = ordered_rooms[offset:] + ordered_rooms[:offset]
+            candidate_rooms = rotated[:8]
             candidate_teachers = self.subject_teachers.get(g.subject_id, self.teachers)
             cohort = g.name.split("-")[0].strip() if "-" in g.name else "G1"
             sem_id = g.subject.semester_id if g.subject else 1
@@ -89,15 +94,19 @@ class ScheduleSolver:
                             if d == DayOfWeek.SATURDAY and s.end_time > time(17, 0):
                                 continue
 
-                            # Shift restriction based on group denomination (Mañana / Tarde / Noche)
+                            # Shift restriction based on group denomination with regex boundary safety
                             g_name_lower = g.name.lower()
-                            if ("mañana" in g_name_lower or "g1" in g_name_lower):
+                            is_morning = "mañana" in g_name_lower or "manana" in g_name_lower or bool(re.search(r'\bg1(\.\d+)?\b', g_name_lower))
+                            is_afternoon = "tarde" in g_name_lower or bool(re.search(r'\bg2(\.\d+)?\b', g_name_lower))
+                            is_night = "noche" in g_name_lower or bool(re.search(r'\bg3(\.\d+)?\b', g_name_lower))
+
+                            if is_morning:
                                 if s.shift != ShiftType.MORNING:
                                     continue
-                            elif ("tarde" in g_name_lower or "g2" in g_name_lower):
+                            elif is_afternoon:
                                 if s.shift != ShiftType.AFTERNOON:
                                     continue
-                            elif ("noche" in g_name_lower or "g3" in g_name_lower):
+                            elif is_night:
                                 if d != DayOfWeek.SATURDAY and s.shift != ShiftType.NIGHT:
                                     continue
                                 if d == DayOfWeek.SATURDAY and s.end_time > time(17, 0):
@@ -158,6 +167,19 @@ class ScheduleSolver:
             t_all_vars = teacher_vars[t.id]
             if t_all_vars:
                 self.model.Add(sum(t_all_vars) <= max_slots)
+
+        # Teacher consecutive hours constraint (Institutional Config: max_consecutive_hours)
+        max_consec_slots = (self.config.max_consecutive_hours // 2) if (self.config and self.config.max_consecutive_hours) else 2
+        daily_slots = sorted(self.time_slots, key=lambda sl: sl.start_time)
+        for t in self.teachers:
+            for d in self.days:
+                for i in range(len(daily_slots) - max_consec_slots):
+                    window_slots = daily_slots[i:i + max_consec_slots + 1]
+                    window_vars = []
+                    for ws in window_slots:
+                        window_vars.extend(teacher_day_slot_vars[(t.id, d.value, ws.id)])
+                    if len(window_vars) > max_consec_slots:
+                        self.model.Add(sum(window_vars) <= max_consec_slots)
 
         # 3. Soft Constraints & Multi-Objective Function
         # We balance: 

@@ -52,3 +52,16 @@ def test_teacher_workload_hard_constraint(setup_db):
                 assert hours <= config.catedra_hours
     finally:
         db.close()
+
+def test_no_teacher_starvation_in_candidate_pool(setup_db):
+    db = next(get_db())
+    try:
+        from app.database.models import Subject
+        solver = ScheduleSolver(db)
+        # Verify that all domain teachers are included in subject_teachers without starvation
+        for s_id, teachers in solver.subject_teachers.items():
+            subj = db.query(Subject).filter_by(id=s_id).first()
+            area_teachers = [t for t in solver.teachers if not subj.knowledge_area or t.knowledge_area == subj.knowledge_area]
+            assert len(teachers) == len(area_teachers), f"Starvation detected for subject {subj.name}: {len(teachers)} vs {len(area_teachers)}"
+    finally:
+        db.close()

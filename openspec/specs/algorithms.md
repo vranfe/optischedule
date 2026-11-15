@@ -26,16 +26,13 @@ where $x_{g,t,r,d,s} = 1$ if and only if group $g$ is assigned to teacher $t$ in
 
 ### 2.2. Domain Reduction and Candidate Pre-Pruning
 
-To avoid state-space explosion, the variable domain is pruned *a priori* before model building:
-1. **Academic Knowledge Area Filtering:**
-   Teacher $t$ is only a candidate for group $g$ if:
-   $$\text{Area}(t) = \text{Area}(\text{Subject}(g))$$
-   Fallback occurs only if no specialized teachers exist in that knowledge domain.
-2. **Room Capacity Filtering:**
-   Room $r$ is considered for group $g$ only if:
-   $$\text{Capacity}(r) \ge \text{ExpectedStudents}(g)$$
-   The top candidate rooms are rotated deterministically based on $g.\text{id} \pmod{|\text{ValidRooms}|}$ to balance infrastructure wear.
-3. **Institutional Shift Alignment:**
+To avoid state-space explosion without causing artificial teacher starvation or classroom bottlenecks:
+1. **Academic Knowledge Area Filtering (No Preference Starvation):**
+   All faculty teachers belonging to the subject's knowledge area ($\text{Area}(t) = \text{Area}(\text{Subject}(g))$) are admitted as valid candidate decision variables. Teacher subject preferences are optimized strictly within the **objective function**, guaranteeing that teachers with lower affinity scores are never pruned *a priori* if high-affinity teachers exceed their contract workload.
+2. **Pedagogical Classroom Selection:**
+   Classrooms matching group capacity ($\text{Capacity}(r) \ge \text{ExpectedStudents}(g)$) are prioritized according to pedagogical nature: software and networks laboratories for programming and hardware courses, and standard lecture halls for mathematics and humanities, rotating dynamically up to 8 candidate rooms to balance wear without creating artificial facility locks.
+3. **Institutional Shift Alignment with Boundary Safety:**
+   Shifts are identified using regex word boundaries ($\backslash bG1(\backslash.\backslash d+)?\backslash b$, $\backslash bG2(\backslash.\backslash d+)?\backslash b$, $\backslash bG3(\backslash.\backslash d+)?\backslash b$) and explicit keyword matching to prevent substring collision errors (e.g., $G10$ erroneously matching $G1$):
    - Morning cohort ($G1$, `MAÑANA`): restricted to $s \in S_{\text{morning}}$ (06:00 - 12:00).
    - Afternoon cohort ($G2$, `TARDE`): restricted to $s \in S_{\text{afternoon}}$ (12:00 - 18:00).
    - Night cohort ($G3$, `NOCHE`): restricted to $s \in S_{\text{night}}$ (18:00 - 22:00) on weekdays, and $s \le s_{17:00}$ on Saturdays.
@@ -174,7 +171,7 @@ $$\text{If } \Big(\text{Slots}(g) \cap \text{Occupied}_{k-1} \neq \emptyset\Big)
 
 Because slot IDs are indexed as tuples $(\text{day}, \text{time\_slot\_id})$, set intersection executes in $O(1)$ amortized time.
 Safety guardrails include a global iteration budget:
-$$\text{Counter} > 8000 \lor |\text{FeasibleSolutions}| \ge 150 \implies \textbf{Terminate Search}$$
+$$\text{Counter} > 50000 \lor |\text{FeasibleSolutions}| \ge 5000 \implies \textbf{Terminate Search}$$
 
 If zero combinations exist for all selected subjects, the algorithm automatically executes an autonomous recovery pass evaluating combinations for $N - 1$ subjects to guarantee students receive the best partial enrollment alternative.
 
@@ -187,17 +184,15 @@ Subject to user-controlled zero-sum weights ($w_{\text{shift}} + w_{\text{gap}} 
 1. **Shift Compatibility ($S_{\text{shift}}$):**
    $$S_{\text{shift}} = \frac{\text{Slots matching preferred shift}}{\text{Total slots in combination}}$$
 2. **Schedule Gap Score ($S_{\text{gap}}$):**
-   Let $G_{\text{total}}$ be the total unoccupied slots between the first and last class on each active day. Each 2-hour gap slot deducts 10%:
+   Calculated strictly through chronological clock intervals rather than relying on sequential IDs. For each active day, slots are sorted by $\text{StartTime}$. Any positive delta between adjacent class sessions $\text{StartTime}_{i+1} - \text{EndTime}_i > 0$ accumulates in 2-hour increments:
    $$S_{\text{gap}} = \max\left(0.0, 1.0 - 0.10 \cdot G_{\text{total}}\right)$$
-3. **Free Days Score ($S_{\text{free}}$):**
-   Free days $F = 6 - |\text{ActiveDays}|$. Evaluated against an institutional piecewise satisfaction curve:
-   $$S_{\text{free}} = \begin{cases}
-   0.00 & \text{if } F = 0 \text{ (classes all 6 days)} \\
-   0.35 & \text{if } F = 1 \text{ (5 class days)} \\
-   0.70 & \text{if } F = 2 \text{ (4 class days)} \\
-   0.90 & \text{if } F = 3 \text{ (3 class days)} \\
-   1.00 & \text{if } F \ge 4
-   \end{cases}$$
+3. **Dynamic Proportional Free Days Score ($S_{\text{free}}$):**
+   Free days $F = 6 - |\text{ActiveDays}|$. Scored proportionally relative to the theoretical maximum achievable free days $F_{\max}$ for the requested course load:
+   $$S_{\text{free}} = \frac{F}{F_{\max}} \quad \text{for } F_{\max} > 0$$
+   This rewards compact schedules that attain the true mathematical optimum for their credit volume, eliminating arbitrary static curve penalties.
 4. **Completeness Penalty Factor ($\Phi_{\text{comp}}$):**
    $$\Phi_{\text{comp}} = \frac{|C|}{N_{\text{requested}}}$$
    Severely penalizes partial schedules where one or more subjects had to be dropped due to institutional bottlenecks.
+
+### 4.5. Multi-Factor Deterministic Tie-Breaking
+When multiple candidate schedules yield identical $\text{Score}(C)$, tie-breaking deterministically cascades through the criteria strictly honoring the student's highest priority slider weight ($\max(w_{\text{shift}}, w_{\text{free}}, w_{\text{gap}})$), eliminating heuristic ordering biases.
