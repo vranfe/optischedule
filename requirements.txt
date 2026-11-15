@@ -9,4 +9,4 @@ pytest-qt>=4.4.0
 pytest-cov>=6.0.0
 mutmut>=3.8.0
 pyinstaller>=6.0.0
-openpyxl>=3.1.0
+openpyxl>=3.1.5
