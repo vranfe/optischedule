@@ -982,9 +982,10 @@ class StudentScheduleView(QWidget):
             score_lbl.setStyleSheet("font-size: 14px; color: #1e3a8a;")
             c_layout.addWidget(score_lbl)
 
+            gap_hrs = opt.get("gap_hours", opt["total_gaps"] * 2)
             details_lbl = QLabel(
                 f"• Jornada: {opt['shift_score']}%\n"
-                f"• Minimización Huecos: {opt['compactness_score']}% ({opt['total_gaps']} huecos)\n"
+                f"• Minimización Huecos: {opt['compactness_score']}% ({gap_hrs} horas de hueco / {opt['total_gaps']} bloques)\n"
                 f"• Días Libres: {opt['free_days']} ({opt['free_day_score']}%)\n"
                 f"• Materias: {opt['subjects_included']}/{opt['total_requested']}"
             )

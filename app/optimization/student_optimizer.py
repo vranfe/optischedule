@@ -227,6 +227,7 @@ class StudentScheduleOptimizer:
                     day_slots.setdefault(s["day"], []).append(s)
 
             total_gaps = 0
+            total_gap_hours = 0
             for d, slist in day_slots.items():
                 if len(slist) > 1 and all(s.get("start_time") and s.get("end_time") for s in slist):
                     # Sort chronologically by start_time
@@ -236,11 +237,16 @@ class StudentScheduleOptimizer:
                         next_start = s_sorted[i + 1]["start_time"]
                         gap_minutes = (next_start.hour * 60 + next_start.minute) - (curr_end.hour * 60 + curr_end.minute)
                         if gap_minutes > 0:
-                            total_gaps += max(1, gap_minutes // 120)
+                            slots = max(1, gap_minutes // 120)
+                            hours = max(1, gap_minutes // 60)
+                            total_gaps += slots
+                            total_gap_hours += hours
                 elif len(slist) > 1:
                     # Fallback to slot ID contiguous math if time objects are missing
                     slot_ids = sorted([s["time_slot_id"] for s in slist])
-                    total_gaps += (slot_ids[-1] - slot_ids[0] + 1) - len(slot_ids)
+                    slots = (slot_ids[-1] - slot_ids[0] + 1) - len(slot_ids)
+                    total_gaps += slots
+                    total_gap_hours += slots * 2
 
             # Metric C: Free days score (out of 6 days Mon-Sat)
             free_days = 6 - len(day_slots)
@@ -250,6 +256,7 @@ class StudentScheduleOptimizer:
                 "total_slots": total_slots,
                 "shift_score": shift_score,
                 "total_gaps": total_gaps,
+                "gap_hours": total_gap_hours,
                 "free_days": free_days,
                 "days_used_count": len(day_slots),
                 "completeness_score": len(combo) / len(selected_subject_ids)
@@ -285,6 +292,7 @@ class StudentScheduleOptimizer:
                 "compactness_score": round(gap_score * 100, 1),
                 "free_day_score": round(free_day_score * 100, 1),
                 "total_gaps": cd["total_gaps"],
+                "gap_hours": cd["gap_hours"],
                 "free_days": cd["free_days"],
                 "max_possible_free_days": max_free,
                 "min_possible_gaps": min_gaps,
