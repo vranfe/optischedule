@@ -4,7 +4,7 @@ ortools>=9.8.0
 pandas>=2.0.0
 numpy==2.2.0
 matplotlib>=3.8.0
-pytest>=8.0.0
+pytest>=9.2.0
 pytest-qt>=4.4.0
 pytest-cov>=6.0.0
 mutmut>=3.8.0
