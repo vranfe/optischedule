@@ -1,11 +1,14 @@
 # 🎓 OptiSchedule UMB — Sistema Inteligente de Optimización y Asignación de Horarios
 
+[![CI Pipeline](https://github.com/vranfe/optischedule/actions/workflows/ci.yml/badge.svg)](https://github.com/vranfe/optischedule/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/vranfe/optischedule/actions/workflows/codeql.yml/badge.svg)](https://github.com/vranfe/optischedule/actions/workflows/codeql.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=vranfe_optischedule&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=vranfe_optischedule)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![GUI](https://img.shields.io/badge/GUI-PySide6%20(Qt%206)-green.svg)](https://www.qt.io/)
 [![Solver](https://img.shields.io/badge/Solver-Google%20OR--Tools%20CP--SAT-orange.svg)](https://developers.google.com/optimization)
 [![Optimizer](https://img.shields.io/badge/Optimizer-Multi--Objective%20Combinatorial-purple.svg)]()
 [![Database](https://img.shields.io/badge/Database-SQLite%203%20%2B%20SQLAlchemy-lightgrey.svg)](https://www.sqlite.org/)
-[![Tests](https://img.shields.io/badge/Tests-18%20Passed%20(100%25)-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-24%20Passed%20(100%25)-brightgreen.svg)]()
 
 **OptiSchedule UMB** es una plataforma institucional de escritorio de grado universitario desarrollada para la **Universidad Manuela Beltrán (UMB)**. Su propósito es resolver de forma automatizada y matemáticamente óptima el problema de asignación de horarios universitarios (*University Course Timetabling Problem - UCTP*), balanceando la carga docente, aforos de aulas, disponibilidad institucional y las preferencias de los estudiantes.
 

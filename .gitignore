@@ -6,6 +6,11 @@ __pycache__/
 # Caches and builds
 .pytest_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+.mutmut-cache/
+*.db-shm
+*.db-wal
 build/
 dist/
 *.toc
