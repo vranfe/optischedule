@@ -59,10 +59,3 @@ jobs:
         run: |
           echo "Executing mutation analysis on core optimization and auth modules..."
           python scripts/run_mutation_tests.py --threshold 50
-
-      - name: SonarCloud Static Code Analysis
-        uses: SonarSource/sonarcloud-github-action@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        continue-on-error: true

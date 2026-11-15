@@ -1,7 +1,6 @@
 # 🎓 OptiSchedule UMB — Sistema Inteligente de Optimización y Asignación de Horarios
 
 [![CI Pipeline](https://github.com/vranfe/optischedule/actions/workflows/ci.yml/badge.svg)](https://github.com/vranfe/optischedule/actions/workflows/ci.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=vranfe_optischedule&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=vranfe_optischedule)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![GUI](https://img.shields.io/badge/GUI-PySide6%20(Qt%206)-green.svg)](https://www.qt.io/)
 [![Solver](https://img.shields.io/badge/Solver-Google%20OR--Tools%20CP--SAT-orange.svg)](https://developers.google.com/optimization)
@@ -228,11 +227,10 @@ El desarrollo de OptiSchedule no siguió el modelo rígido de "cascada", sino un
   • Medición cronológica de huecos en horas reales (`gap_hours`).
   • Supresión de inanición docente (*no teacher starvation*) en CP-SAT.
 
-[Iteración 21-25: DevSecOps, Integración Continua (CI/CD) y Calidad Estática]
+[Iteración 21-25: Integración Continua (CI/CD) y Resiliencia de Pruebas]
   • Creación del pipeline de CI/CD en GitHub Actions (`.github/workflows/ci.yml`) con ejecución headless de PySide6 (`QT_QPA_PLATFORM=offscreen`).
   • Integración de pruebas automatizadas con reporte de cobertura XML (`coverage.xml`, 63% de cobertura total).
   • Implementación de Mutation Testing automatizado con `mutmut` (`scripts/run_mutation_tests.py`, umbral mínimo 50%).
-  • Configuración de análisis estático y Quality Gate con SonarCloud (`sonar-project.properties`).
   • Auditoría semanal automática de dependencias y parches de seguridad con Dependabot (`.github/dependabot.yml`).
   • Suite automatizada ampliada y verificada a 24 tests (100% aprobados).
 ```
@@ -291,7 +289,6 @@ OptiSchedule UMB cuenta con un ecosistema de Integración Continua, Análisis Es
   2. Activa `QT_QPA_PLATFORM=offscreen` permitiendo que PySide6 y los componentes de interfaz ejecuten sus pruebas en modo headless.
   3. Ejecuta los 24 tests mediante **PyTest** y genera el reporte `coverage.xml` (63% de cobertura global, superando el 85-94% en los motores de optimización).
   4. Ejecuta el runner de **Mutation Testing** (`scripts/run_mutation_tests.py`), asegurando que las aserciones de prueba maten mutantes artificiales con un puntaje superior al 50%.
-  5. Envía las métricas de calidad y cobertura al Quality Gate de **SonarCloud**.
 
 ### 2. `dependabot.yml` — Auditoría Automatizada de Dependencias
 * **Ubicación:** `.github/dependabot.yml`
