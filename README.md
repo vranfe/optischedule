@@ -1,7 +1,6 @@
 # 🎓 OptiSchedule UMB — Sistema Inteligente de Optimización y Asignación de Horarios
 
 [![CI Pipeline](https://github.com/vranfe/optischedule/actions/workflows/ci.yml/badge.svg)](https://github.com/vranfe/optischedule/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/vranfe/optischedule/actions/workflows/codeql.yml/badge.svg)](https://github.com/vranfe/optischedule/actions/workflows/codeql.yml)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=vranfe_optischedule&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=vranfe_optischedule)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![GUI](https://img.shields.io/badge/GUI-PySide6%20(Qt%206)-green.svg)](https://www.qt.io/)
@@ -220,35 +219,86 @@ El desarrollo de OptiSchedule no siguió el modelo rígido de "cascada", sino un
   • Sliders interactivos de ponderación de preferencias con regla de suma cero (100%).
   • Exportación formal a Excel (.xlsx) y visualizadores modales a pantalla completa.
 
-[Iteración 16-20+: Robustez, Estabilidad y Respaldo Institucional]
+[Iteración 16-20: Robustez, Estabilidad y Respaldo Institucional]
   • Erradicación de errores críticos en pestañas ocultas (estiramiento de celdas y clamping).
   • Filtrado estricto por área académica docente (`knowledge_area`) para evitar asignaciones incongruentes.
   • Desbloqueo dinámico para alumnos rezagados al marcar sus asignaturas adeudadas.
   • Incorporación de disponibilidad en tiempo real con semáforo en el CRUD de Grupos.
-  • Suite automatizada de pruebas ampliada a 18 tests (100% aprobados).
+  • Corrección de incompatibilidad de tipos Enum en SQLite (`_clean_field_value`).
+  • Medición cronológica de huecos en horas reales (`gap_hours`).
+  • Supresión de inanición docente (*no teacher starvation*) en CP-SAT.
+
+[Iteración 21-25: DevSecOps, Integración Continua (CI/CD) y Calidad Estática]
+  • Creación del pipeline de CI/CD en GitHub Actions (`.github/workflows/ci.yml`) con ejecución headless de PySide6 (`QT_QPA_PLATFORM=offscreen`).
+  • Integración de pruebas automatizadas con reporte de cobertura XML (`coverage.xml`, 63% de cobertura total).
+  • Implementación de Mutation Testing automatizado con `mutmut` (`scripts/run_mutation_tests.py`, umbral mínimo 50%).
+  • Configuración de análisis estático y Quality Gate con SonarCloud (`sonar-project.properties`).
+  • Auditoría semanal automática de dependencias y parches de seguridad con Dependabot (`.github/dependabot.yml`).
+  • Suite automatizada ampliada y verificada a 24 tests (100% aprobados).
 ```
 
 ---
 
 ## 🧪 7. Verificación y Pruebas Automatizadas
 
-Para ejecutar la batería completa de pruebas:
+Para ejecutar la batería completa de 24 pruebas con reporte de cobertura en terminal:
 ```powershell
-python -m pytest tests/ -v
+python -m pytest tests/ --cov=app --cov-report=term -v
 ```
 
-Resultado verificado:
+Resultado verificado de la suite:
 ```text
-tests/test_auth.py ........                                              [ 44%]
-tests/test_crud_table.py ...                                             [ 61%]
-tests/test_solver_and_rules.py ..                                        [ 72%]
-tests/test_student_optimizer.py ..                                       [ 83%]
-tests/test_validation.py ...                                             [100%]
+tests/test_auth.py::test_hash_password_generates_salt_and_hash PASSED                    [  4%]
+tests/test_auth.py::test_verify_password_correct_and_incorrect PASSED                    [  8%]
+tests/test_auth.py::test_validate_password_strength PASSED                               [ 12%]
+tests/test_auth.py::test_authenticate_user_success PASSED                                 [ 16%]
+tests/test_auth.py::test_authenticate_user_invalid_credentials PASSED                     [ 20%]
+tests/test_auth.py::test_session_management PASSED                                       [ 25%]
+tests/test_auth.py::test_session_has_role PASSED                                         [ 29%]
+tests/test_auth.py::test_session_clear PASSED                                            [ 33%]
+tests/test_crud_table.py::test_student_crud_update PASSED                                 [ 37%]
+tests/test_crud_table.py::test_teacher_crud_update_enum PASSED                            [ 41%]
+tests/test_crud_table.py::test_room_crud_capacity PASSED                                  [ 45%]
+tests/test_crud_table.py::test_subject_crud_update_credits_hours_and_area PASSED          [ 50%]
+tests/test_crud_table.py::test_generic_table_view_clean_field_value PASSED                [ 54%]
+tests/test_solver_and_rules.py::test_solver_feasibility_and_hard_constraints PASSED       [ 58%]
+tests/test_solver_and_rules.py::test_no_saturday_night_slots PASSED                      [ 62%]
+tests/test_solver_and_rules.py::test_no_teacher_starvation_in_candidate_pool PASSED      [ 66%]
+tests/test_student_optimizer.py::test_student_optimizer_basic_flow PASSED                 [ 70%]
+tests/test_student_optimizer.py::test_student_optimizer_compact_free_days PASSED          [ 75%]
+tests/test_student_optimizer.py::test_student_optimizer_gap_calculation PASSED           [ 79%]
+tests/test_student_optimizer.py::test_student_optimizer_saturday_night_allowed PASSED     [ 83%]
+tests/test_student_optimizer.py::test_student_optimizer_tie_breaker_respects_shift_weight PASSED [ 87%]
+tests/test_validation.py::test_student_payment_agreement PASSED                          [ 91%]
+tests/test_validation.py::test_room_capacity_limits PASSED                               [ 95%]
+tests/test_validation.py::test_irregular_student_rules PASSED                            [100%]
 
-======================== 18 passed in 93.68s (0:01:33) ========================
+======================== 24 passed in 129.85s (0:02:09) ========================
 ```
 
 ---
 
-## 📄 Créditos y Autoría
+## 🚀 8. Pipeline de CI/CD y DevSecOps (`.github/workflows/`)
+
+OptiSchedule UMB cuenta con un ecosistema de Integración Continua, Análisis Estático de Código (SAST) y Gestión de Dependencias automatizado en GitHub Actions:
+
+### 1. `ci.yml` — Integración Continua, Cobertura y Mutation Testing
+* **Ubicación:** `.github/workflows/ci.yml`
+* **Disparadores:** En cada `push` y `pull_request` sobre la rama `main`.
+* **Entorno:** Ubuntu Linux (`ubuntu-latest`) con Python 3.12.
+* **Funcionalidad:**
+  1. Instala dependencias gráficas de sistema (`libegl1`, `libxkbcommon`, `xvfb`) para emular el entorno de ventanas sin requerir servidor físico.
+  2. Activa `QT_QPA_PLATFORM=offscreen` permitiendo que PySide6 y los componentes de interfaz ejecuten sus pruebas en modo headless.
+  3. Ejecuta los 24 tests mediante **PyTest** y genera el reporte `coverage.xml` (63% de cobertura global, superando el 85-94% en los motores de optimización).
+  4. Ejecuta el runner de **Mutation Testing** (`scripts/run_mutation_tests.py`), asegurando que las aserciones de prueba maten mutantes artificiales con un puntaje superior al 50%.
+  5. Envía las métricas de calidad y cobertura al Quality Gate de **SonarCloud**.
+
+### 2. `dependabot.yml` — Auditoría Automatizada de Dependencias
+* **Ubicación:** `.github/dependabot.yml`
+* **Frecuencia:** Semanal.
+* **Funcionalidad:** Monitorea las dependencias de Python en `requirements.txt` y las versiones de las acciones de GitHub Actions (`checkout`, `setup-python`), abriendo Pull Requests automáticos ante vulnerabilidades o parches de seguridad.
+
+---
+
+## 📄 9. Créditos y Autoría
 Proyecto desarrollado para taller de programación de la **Universidad Manuela Beltrán (UMB)**.

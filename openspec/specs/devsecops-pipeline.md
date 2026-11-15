@@ -23,15 +23,10 @@ The OptiSchedule UMB engineering workflow incorporates automated CI/CD, Static A
 - **SonarCloud Analysis:**
   Integrates `SonarSource/sonarcloud-github-action@master` consuming `sonar-project.properties` and `coverage.xml`.
 
-### 2.2. GitHub Advanced Security: CodeQL (`.github/workflows/codeql.yml`)
-- **Query Suites:** `security-extended`, `security-and-quality`.
-- **Target Language:** Python.
-- **Schedules:** Weekly automated audits (Mondays 01:30 UTC) plus real-time scans on pushes and PRs.
-- **Vulnerability Detection Scope:** SQL Injection, path traversal, hardcoded secrets, insecure deserialization, and cryptographic weaknesses.
-
-### 2.3. Automated Dependency Auditing: Dependabot (`.github/dependabot.yml`)
+### 2.2. Automated Dependency Auditing: Dependabot (`.github/dependabot.yml`)
 - Audits `pip` packages in `/` on a weekly schedule.
-- Audits GitHub Actions workflow action versions (`actions/checkout`, `actions/setup-python`, `github/codeql-action`) on a weekly schedule.
+- Audits GitHub Actions workflow action versions (`actions/checkout`, `actions/setup-python`) on a weekly schedule.
+- Operates natively and securely on private repositories without requiring enterprise licensing.
 
 ---
 
